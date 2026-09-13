@@ -172,6 +172,16 @@ export default function OnboardingPage() {
                     {isSubmitting ? 'Saving...' : 'Complete Profile'} <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </div>
+
+                {/* Emergency Bypass for Demo/Hackathon */}
+                <Button 
+                  type="button" 
+                  variant="ghost"
+                  onClick={() => router.push('/dashboard')}
+                  className="w-full text-gray-400 hover:text-gray-600 mt-2"
+                >
+                  Skip to Dashboard
+                </Button>
               </form>
             </motion.div>
           )}

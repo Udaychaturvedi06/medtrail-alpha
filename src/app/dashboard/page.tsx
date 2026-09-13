@@ -15,7 +15,7 @@ export default function DashboardPage() {
   const { user, profile, loading, logout } = useAuth();
   const router = useRouter();
 
-  // The actual role bound to this user in the database
+  // Default to patient if profile fails to load for demo
   const role = profile?.role || 'patient';
   
   // Local records
@@ -64,10 +64,10 @@ export default function DashboardPage() {
   }, [sosActive, sosCountdown]);
 
   useEffect(() => {
-    if (!loading && (!user || !profile)) {
+    if (!loading && !user) {
       router.push('/');
     }
-  }, [user, profile, loading, router]);
+  }, [user, loading, router]);
 
   // Read data securely from Firestore (No localStorage)
   useEffect(() => {
