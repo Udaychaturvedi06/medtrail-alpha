@@ -69,9 +69,17 @@ export default function OnboardingPage() {
         <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-primary to-blue-400" />
         
         <div className="p-8 md:p-12 pt-10">
-          <Link href="/" className="flex items-center justify-center mb-8 text-primary cursor-pointer hover:opacity-80 transition-opacity">
+          <button 
+            onClick={async () => {
+              const { auth } = await import('@/lib/firebase');
+              const { signOut } = await import('firebase/auth');
+              await signOut(auth);
+              router.push('/');
+            }} 
+            className="flex w-full items-center justify-center mb-8 text-primary cursor-pointer hover:opacity-80 transition-opacity"
+          >
             <HeartPulse className="w-10 h-10" />
-          </Link>
+          </button>
           
           {step === 1 && (
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
