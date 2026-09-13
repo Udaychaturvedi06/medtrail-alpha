@@ -74,7 +74,7 @@ export default function OnboardingPage() {
               const { auth } = await import('@/lib/firebase');
               const { signOut } = await import('firebase/auth');
               await signOut(auth);
-              router.push('/');
+              window.location.href = '/';
             }} 
             className="flex w-full items-center justify-center mb-8 text-primary cursor-pointer hover:opacity-80 transition-opacity"
           >

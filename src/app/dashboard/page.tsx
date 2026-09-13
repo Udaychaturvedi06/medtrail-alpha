@@ -66,9 +66,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/');
+      // Use window.location.href instead of router.push to force a hard reload
+      // This prevents Next.js chunk mismatch errors (React Error 306) across deployments
+      window.location.href = '/';
     }
-  }, [user, loading, router]);
+  }, [user, loading]);
 
   // Read data securely from Firestore (No localStorage)
   useEffect(() => {

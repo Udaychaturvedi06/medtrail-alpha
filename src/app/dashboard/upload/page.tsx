@@ -13,9 +13,9 @@ export default function UploadPage() {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/');
+      window.location.href = '/';
     }
-  }, [user, loading, router]);
+  }, [user, loading]);
 
   if (loading || !user) {
     return <div className="p-8">Loading...</div>;

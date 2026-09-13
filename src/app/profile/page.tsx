@@ -14,7 +14,7 @@ export default function ProfilePage() {
 
   if (loading) return null;
   if (!user || !profile) {
-    router.push('/');
+    window.location.href = '/';
     return null;
   }
 
