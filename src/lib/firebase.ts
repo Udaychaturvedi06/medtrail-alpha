@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,7 +16,6 @@ const firebaseConfig = {
 let app;
 let auth: ReturnType<typeof getAuth>;
 let db: ReturnType<typeof getFirestore>;
-let storage: ReturnType<typeof getStorage>;
 let googleProvider: GoogleAuthProvider;
 let githubProvider: OAuthProvider;
 
@@ -25,11 +23,10 @@ try {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
   db = getFirestore(app);
-  storage = getStorage(app);
   googleProvider = new GoogleAuthProvider();
   githubProvider = new OAuthProvider('apple.com');
 } catch (error) {
   console.warn('Firebase initialization failed (expected during build without env vars):', error);
 }
 
-export { app, auth, db, storage, googleProvider, githubProvider };
+export { app, auth, db, googleProvider, githubProvider };

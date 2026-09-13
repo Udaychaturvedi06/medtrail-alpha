@@ -201,18 +201,30 @@ export function CaptureModule() {
       let uploadedImageUrl = null;
 
       try {
-        const { storage } = await import('@/lib/firebase');
-        const { ref, uploadString, getDownloadURL } = await import('firebase/storage');
-        
-        if (storage && imageSrc) {
-          const imageRef = ref(storage, `users/${user.uid}/prescriptions/${recordId}.jpg`);
-          // Note: imageSrc from react-webcam or file input is typically a data URL
-          await uploadString(imageRef, imageSrc, 'data_url');
-          uploadedImageUrl = await getDownloadURL(imageRef);
+        if (imageSrc) {
+          // Cloudinary Upload
+          const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+          const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+          
+          if (cloudName && uploadPreset) {
+            const formData = new FormData();
+            formData.append('file', imageSrc);
+            formData.append('upload_preset', uploadPreset);
+            formData.append('folder', `medtrail_prescriptions/${user.uid}`);
+
+            const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+              method: 'POST',
+              body: formData
+            });
+
+            if (uploadRes.ok) {
+              const cloudinaryData = await uploadRes.json();
+              uploadedImageUrl = cloudinaryData.secure_url; // The public Cloudinary URL
+            }
+          }
         }
       } catch (err) {
-        console.error('Failed to upload image:', err);
-        // We continue saving the record even if image upload fails
+        console.error('Failed to upload image to Cloudinary:', err);
       }
 
       const newRecord = {
