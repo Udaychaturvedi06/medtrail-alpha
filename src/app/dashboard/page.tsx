@@ -149,19 +149,22 @@ export default function DashboardPage() {
     );
   }
 
+  // Tab State
+  const [activeTab, setActiveTab] = useState('dashboard');
+
   const handleLogout = async () => {
     await logout();
     toast.success('Successfully logged out');
   };
 
-  const SidebarItem = ({ icon: Icon, label, active = false }: { icon: any, label: string, active?: boolean }) => (
+  const SidebarItem = ({ icon: Icon, label, id }: { icon: any, label: string, id: string }) => (
     <motion.a 
       whileHover={{ scale: 1.02, x: 4 }}
       whileTap={{ scale: 0.98 }}
       href="#" 
-      onClick={(e) => { e.preventDefault(); toast.info(`Navigating to ${label}...`); }}
+      onClick={(e) => { e.preventDefault(); setActiveTab(id); }}
       className={`flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition-colors ${
-        active ? 'bg-primary text-white shadow-md' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+        activeTab === id ? 'bg-primary text-white shadow-md' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
       }`}
     >
       <Icon className="w-5 h-5" /> {label}
@@ -183,31 +186,31 @@ export default function DashboardPage() {
         </div>
         
         <nav className="flex-1 px-5 py-6 space-y-2 overflow-y-auto">
-          <SidebarItem icon={LayoutDashboard} label="Dashboard" active />
+          <SidebarItem icon={LayoutDashboard} label="Dashboard" id="dashboard" />
           
           {role === 'patient' && (
             <>
-              <SidebarItem icon={FileText} label="My Prescriptions" />
-              <SidebarItem icon={Activity} label="Interaction Checks" />
+              <SidebarItem icon={FileText} label="My Prescriptions" id="prescriptions" />
+              <SidebarItem icon={Activity} label="Interaction Checks" id="interactions" />
             </>
           )}
           
           {role === 'caregiver' && (
             <>
-              <SidebarItem icon={Users} label="My Patients" />
-              <SidebarItem icon={Bell} label="SOS Alerts" />
+              <SidebarItem icon={Users} label="My Patients" id="patients" />
+              <SidebarItem icon={Bell} label="SOS Alerts" id="alerts" />
             </>
           )}
 
           {role === 'doctor' && (
             <>
-              <SidebarItem icon={Stethoscope} label="Patient Search" />
-              <SidebarItem icon={Activity} label="Clinical Analytics" />
+              <SidebarItem icon={Stethoscope} label="Patient Search" id="search" />
+              <SidebarItem icon={Activity} label="Clinical Analytics" id="analytics" />
             </>
           )}
           
           <div className="pt-4 mt-4 border-t border-gray-100">
-            <SidebarItem icon={Settings} label="Settings" />
+            <SidebarItem icon={Settings} label="Settings" id="settings" />
           </div>
         </nav>
 
@@ -336,16 +339,18 @@ export default function DashboardPage() {
               className="max-w-6xl mx-auto space-y-8"
             >
               
-              {/* Welcome Banner */}
-              <motion.div 
-                whileHover={{ y: -2 }}
+              {activeTab === 'dashboard' && (
+                <>
+                  {/* Welcome Banner */}
+                  <motion.div 
+                    whileHover={{ y: -2 }}
                 className="bg-gradient-to-r from-primary to-[#0f6b60] text-white rounded-3xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden"
               >
                 <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
                   <HeartPulse className="w-64 h-64" />
                 </div>
                 <div className="relative z-10 max-w-2xl">
-                  <h1 className="text-4xl font-extrabold mb-3 tracking-tight">
+                  <h1 className="text-3xl md:text-4xl font-extrabold mb-3 tracking-tight">
                     {role === 'patient' ? `Good afternoon, ${user.displayName?.split(' ')[0] || 'there'}!` : 
                      role === 'caregiver' ? 'Caregiver Overview' : 'Doctor Analytics Dashboard'}
                   </h1>
@@ -370,15 +375,14 @@ export default function DashboardPage() {
                 </div>
               </motion.div>
 
-              <div className="mb-10">
-                <ManualChecker />
-              </div>
 
-              {/* Main Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
-                {/* Timeline (Spans 2 columns) */}
-                <div className="lg:col-span-2 space-y-6">
+
+              {/* Main Grid for Dashboard & Prescriptions */}
+              {['dashboard', 'prescriptions'].includes(activeTab) && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  
+                  {/* Timeline (Spans 2 cols on Dashboard, 3 cols on Prescriptions) */}
+                  <div className={`${activeTab === 'prescriptions' ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-6`}>
 
                   {role === 'caregiver' && notifications.length > 0 && (
                     <div className="mb-8">
@@ -411,7 +415,7 @@ export default function DashboardPage() {
                     <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
                       {role === 'patient' ? 'Chronological Record' : role === 'caregiver' ? 'Patient Timelines' : 'Patient History'}
                     </h2>
-                    <Button variant="ghost" className="font-bold text-primary hover:bg-primary/10">View All →</Button>
+                    <Button variant="ghost" onClick={() => setActiveTab('prescriptions')} className="font-bold text-primary hover:bg-primary/10">View All →</Button>
                   </div>
                   
                   <div>
@@ -493,41 +497,63 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Interaction Alerts Side Panel */}
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">Safety Monitor</h2>
-                  
-                  <motion.div 
-                    whileHover={{ y: -4 }}
-                    className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm transition-all"
-                  >
-                    {/* Status header */}
-                    <div className="bg-gradient-to-r from-emerald-50 to-green-50 border-b border-emerald-100 p-5 flex items-center gap-4">
-                      <div className="p-2 bg-emerald-100 rounded-full">
-                        <ShieldAlert className="w-6 h-6 text-emerald-600" />
-                      </div>
-                      <div>
-                        <div className="font-extrabold text-emerald-900 text-lg">All Clear</div>
-                        <div className="text-sm font-semibold text-emerald-700">No dangerous interactions</div>
-                      </div>
-                    </div>
+                {/* Interaction Alerts Side Panel - Dashboard Only */}
+                {activeTab === 'dashboard' && (
+                  <div className="space-y-6">
+                    <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">Safety Monitor</h2>
                     
-                    {/* Info body */}
-                    <div className="p-6">
-                      <p className="text-sm font-medium text-gray-600 leading-relaxed mb-6">
-                        Our engine continuously cross-checks medications against the DDInter database. If a Severe or Moderate risk is detected, it will alert you immediately.
-                      </p>
-                      <div className="w-full bg-gray-50 rounded-xl p-4 border border-gray-100 flex items-center justify-between text-sm shadow-inner">
-                        <span className="text-gray-500 font-medium">Last scanned</span>
-                        <span className="font-bold text-emerald-600 flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Live
-                        </span>
+                    <motion.div 
+                      whileHover={{ y: -4 }}
+                      className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm transition-all"
+                    >
+                      {/* Status header */}
+                      <div className="bg-gradient-to-r from-emerald-50 to-green-50 border-b border-emerald-100 p-5 flex items-center gap-4">
+                        <div className="p-2 bg-emerald-100 rounded-full">
+                          <ShieldAlert className="w-6 h-6 text-emerald-600" />
+                        </div>
+                        <div>
+                          <div className="font-extrabold text-emerald-900 text-lg">All Clear</div>
+                          <div className="text-sm font-semibold text-emerald-700">No dangerous interactions</div>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                </div>
+                      
+                      {/* Info body */}
+                      <div className="p-6">
+                        <p className="text-sm font-medium text-gray-600 leading-relaxed mb-6">
+                          Our engine continuously cross-checks medications against the DDInter database. If a Severe or Moderate risk is detected, it will alert you immediately.
+                        </p>
+                        <div className="w-full bg-gray-50 rounded-xl p-4 border border-gray-100 flex items-center justify-between text-sm shadow-inner">
+                          <span className="text-gray-500 font-medium">Last scanned</span>
+                          <span className="font-bold text-emerald-600 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Live
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
                 
               </div>
+            )}
+                </>
+              )}
+
+              {/* Interactions Tab */}
+              {activeTab === 'interactions' && (
+                <div className="pt-4">
+                  <ManualChecker />
+                </div>
+              )}
+
+              {/* Settings Tab */}
+              {activeTab === 'settings' && (
+                <div className="bg-white rounded-3xl p-10 shadow-sm border border-gray-100 text-center py-20">
+                  <Settings className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Settings</h2>
+                  <p className="text-gray-500">Settings panel is coming in the next update.</p>
+                </div>
+              )}
+
             </motion.div>
           </AnimatePresence>
         </div>
@@ -536,12 +562,12 @@ export default function DashboardPage() {
       {/* Mobile Bottom Navigation & SOS */}
       <div className="md:hidden fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-md border-t border-gray-200 z-40 px-6 py-2 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-safe">
         <div className="flex justify-between items-center relative">
-          <button className="flex flex-col items-center p-2 text-primary">
+          <button className="flex flex-col items-center p-2 text-primary" onClick={() => setActiveTab('dashboard')}>
             <LayoutDashboard className="w-6 h-6 mb-1" />
             <span className="text-[10px] font-bold">Home</span>
           </button>
           
-          <button className="flex flex-col items-center p-2 text-gray-400 hover:text-primary transition-colors" onClick={() => toast.info('Navigating to Records...')}>
+          <button className="flex flex-col items-center p-2 text-gray-400 hover:text-primary transition-colors" onClick={() => setActiveTab('prescriptions')}>
             <FileText className="w-6 h-6 mb-1" />
             <span className="text-[10px] font-bold">Records</span>
           </button>
@@ -556,7 +582,7 @@ export default function DashboardPage() {
             </button>
           </div>
           
-          <button className="flex flex-col items-center p-2 text-gray-400 hover:text-primary transition-colors" onClick={() => toast.info('Navigating to Settings...')}>
+          <button className="flex flex-col items-center p-2 text-gray-400 hover:text-primary transition-colors" onClick={() => setActiveTab('settings')}>
             <Settings className="w-6 h-6 mb-1" />
             <span className="text-[10px] font-bold">Settings</span>
           </button>
