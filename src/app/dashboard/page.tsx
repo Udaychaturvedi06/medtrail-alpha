@@ -29,6 +29,9 @@ export default function DashboardPage() {
   const [sosActive, setSosActive] = useState(false);
   const [sosCountdown, setSosCountdown] = useState(3);
 
+  // Tab State
+  const [activeTab, setActiveTab] = useState('dashboard');
+
   // Handle SOS trigger
   const triggerSOS = () => {
     setSosActive(true);
@@ -151,8 +154,7 @@ export default function DashboardPage() {
     );
   }
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState('dashboard');
+
 
   const handleLogout = async () => {
     await logout();
