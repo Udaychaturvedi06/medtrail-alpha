@@ -138,7 +138,7 @@ export default function DashboardPage() {
     };
   }, [user, role]);
 
-  if (loading || !user || !profile) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 text-primary">
         <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>

@@ -181,10 +181,41 @@ export default function OnboardingPage() {
             <Button 
               type="button" 
               variant="outline"
-              onClick={() => router.push('/dashboard')}
+              disabled={isSubmitting}
+              onClick={async () => {
+                setIsSubmitting(true);
+                try {
+                  const { collection, getDocs, limit, query, doc, getDoc } = await import('firebase/firestore');
+                  if (!db) throw new Error('No DB');
+                  
+                  // Check Profile
+                  const docSnap = await getDoc(doc(db, 'users', user.uid));
+                  if (docSnap.exists()) {
+                    toast.success('Existing profile found!');
+                    router.push('/dashboard');
+                    return;
+                  }
+
+                  // Check Records
+                  const q = query(collection(db, 'users', user.uid, 'records'), limit(1));
+                  const recordsSnap = await getDocs(q);
+                  
+                  if (!recordsSnap.empty) {
+                    toast.success('Existing records found!');
+                    router.push('/dashboard');
+                  } else {
+                    toast.error('Access Denied: You must complete your profile first!');
+                    setIsSubmitting(false);
+                  }
+                } catch (err) {
+                  console.error(err);
+                  toast.error('Access Denied: You must complete your profile first!');
+                  setIsSubmitting(false);
+                }
+              }}
               className="w-full text-gray-500 hover:text-gray-800 hover:bg-gray-100"
             >
-              Skip to Dashboard (Already Registered)
+              {isSubmitting ? 'Verifying...' : 'Skip to Dashboard (Already Registered)'}
             </Button>
           </div>
         </div>
