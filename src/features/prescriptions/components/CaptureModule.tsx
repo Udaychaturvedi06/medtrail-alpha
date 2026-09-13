@@ -22,11 +22,18 @@ export function CaptureModule() {
   const [folder, setFolder] = useState('General');
   const [reminders, setReminders] = useState<string[]>([]);
   const [newReminderTime, setNewReminderTime] = useState('');
+  const [rxcui, setRxcui] = useState<string | null>(null);
+  const [ingredient, setIngredient] = useState<string | null>(null);
+  const [rxcuiStatus, setRxcuiStatus] = useState<'pending' | 'success' | 'failed' | 'idle'>('idle');
+
+  const [interactionResult, setInteractionResult] = useState<any>(null);
 
   const webcamRef = useRef<Webcam>(null);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const router = useRouter();
 
+  // ... (keeping other methods same)
+  
   const capture = useCallback(() => {
     if (webcamRef.current) {
       const imageSrc = webcamRef.current.getScreenshot();
@@ -46,12 +53,82 @@ export function CaptureModule() {
       reader.readAsDataURL(file);
     }
   };
+  
+  const checkInteractions = async (newIngredient: string) => {
+    try {
+      if (!user?.uid) return;
+      
+      const { db } = await import('@/lib/firebase');
+      const { collection, getDocs } = await import('firebase/firestore');
+      if (!db) return;
+
+      const querySnapshot = await getDocs(collection(db, 'users', user.uid, 'records'));
+      const existingIngredients: string[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.ingredient) existingIngredients.push(data.ingredient);
+      });
+
+      if (existingIngredients.length === 0) return;
+      
+      const idToken = await user.getIdToken();
+
+      const res = await fetch('/api/check-interaction', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          newDrugIngredient: newIngredient,
+          existingDrugIngredients: existingIngredients
+        })
+      });
+      
+      const data = await res.json();
+      if (data.highestSeverity && data.highestSeverity !== 'None') {
+        setInteractionResult(data);
+        
+        // Auto-Trigger SOS for Major Interactions
+        if (data.highestSeverity === 'Major') {
+          toast.error('SEVERE INTERACTION DETECTED: Notifying caregiver immediately...', { duration: 5000 });
+          fetch('/api/sos', { method: 'POST' })
+            .then(() => toast.success('Caregiver successfully alerted via WhatsApp.'))
+            .catch(e => console.error('Failed to auto-send SOS', e));
+            
+          // In-App Caregiver Notification
+          const { collection: fsCollection, addDoc } = await import('firebase/firestore');
+          if (profile && db) {
+            if (profile.caregiverEmail) {
+              await addDoc(fsCollection(db, 'notifications'), {
+                caregiverEmail: profile.caregiverEmail,
+                patientName: profile.name || user?.email,
+                patientUid: user?.uid,
+                type: 'SEVERE_INTERACTION',
+                message: `DANGER: ${profile.name || user?.email} just scanned ${data.targetDrug.toUpperCase()} which has a SEVERE interaction with their existing medications.`,
+                targetDrug: data.targetDrug,
+                interactions: data.interactions,
+                timestamp: new Date().toISOString(),
+                read: false
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Interaction check failed', e);
+    }
+  };
 
   const handleRetake = () => {
     setImageSrc(null);
     setMode('select');
     setOcrData(null);
     setReminders([]);
+    setRxcui(null);
+    setIngredient(null);
+    setRxcuiStatus('idle');
+    setInteractionResult(null);
   };
 
   const handleProcessImage = async () => {
@@ -68,10 +145,33 @@ export function CaptureModule() {
       
       if (!res.ok) throw new Error(responseData.error || 'OCR Processing failed');
       
+      const extractedMedName = responseData.data.medicationName || '';
       setOcrData(responseData.data);
-      setMedName(responseData.data.medicationName || '');
+      setMedName(extractedMedName);
       setDosage(responseData.data.dosage || '');
       setMode('review');
+
+      // Now query RxNorm in the background to get the official RxCUI
+      if (extractedMedName) {
+        setRxcuiStatus('pending');
+        fetch(`/api/rxnorm?name=${encodeURIComponent(extractedMedName)}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.rxcui) {
+              setRxcui(data.rxcui);
+              setIngredient(data.ingredient);
+              setRxcuiStatus('success');
+              
+              if (data.ingredient) {
+                checkInteractions(data.ingredient);
+              }
+            } else {
+              setRxcuiStatus('failed');
+            }
+          })
+          .catch(() => setRxcuiStatus('failed'));
+      }
+      
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || 'Failed to process image');
@@ -90,30 +190,60 @@ export function CaptureModule() {
     setReminders(reminders.filter(t => t !== time));
   };
 
-  const handleFinalSave = () => {
+  const handleFinalSave = async () => {
     if (!medName) {
       toast.error('Medication name is required');
       return;
     }
 
     if (user?.uid) {
-      const storageKey = `medtrail_records_${user.uid}`;
-      const existingRecords = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      
+      const recordId = Date.now().toString();
+      let uploadedImageUrl = null;
+
+      try {
+        const { storage } = await import('@/lib/firebase');
+        const { ref, uploadString, getDownloadURL } = await import('firebase/storage');
+        
+        if (storage && imageSrc) {
+          const imageRef = ref(storage, `users/${user.uid}/prescriptions/${recordId}.jpg`);
+          // Note: imageSrc from react-webcam or file input is typically a data URL
+          await uploadString(imageRef, imageSrc, 'data_url');
+          uploadedImageUrl = await getDownloadURL(imageRef);
+        }
+      } catch (err) {
+        console.error('Failed to upload image:', err);
+        // We continue saving the record even if image upload fails
+      }
+
       const newRecord = {
-        id: Date.now().toString(),
+        id: recordId,
         date: new Date().toISOString(),
         medicationName: medName,
         dosage: dosage,
         folder: folder,
         reminders: reminders,
-        rawOcrData: ocrData // keep original for reference
+        rxcui: rxcui, // Officially save the NIH Drug ID
+        ingredient: ingredient, // Generic name for DDInter lookup
+        imageUrl: uploadedImageUrl, // Save the secure Cloud Storage URL
+        rawOcrData: ocrData 
       };
-      
-      localStorage.setItem(storageKey, JSON.stringify([...existingRecords, newRecord]));
-      toast.success('Record saved to folder successfully!');
+
+      try {
+        // Save to Firestore ONLY
+        const { db } = await import('@/lib/firebase');
+        const { doc, setDoc } = await import('firebase/firestore');
+        if (db) {
+          await setDoc(doc(db, 'users', user.uid, 'records', recordId), newRecord);
+        }
+        
+        toast.success('Record saved successfully!');
+        setMode('result');
+      } catch (error) {
+        console.error('Failed to save to Firestore:', error);
+        toast.error('Failed to sync to cloud. Please check your connection.');
+        setMode('result');
+      }
     }
-    setMode('result');
   };
 
   return (
@@ -201,6 +331,53 @@ export function CaptureModule() {
 
         {mode === 'review' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            
+            {interactionResult && (
+              <div className={`border-l-4 p-4 rounded-r-xl shadow-sm ${
+                interactionResult.highestSeverity === 'Major' ? 'bg-red-50 border-red-500' :
+                interactionResult.highestSeverity === 'Moderate' ? 'bg-orange-50 border-orange-500' :
+                'bg-yellow-50 border-yellow-500'
+              }`}>
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <span className="text-2xl">⚠️</span>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className={`text-lg font-bold ${
+                      interactionResult.highestSeverity === 'Major' ? 'text-red-800' :
+                      interactionResult.highestSeverity === 'Moderate' ? 'text-orange-800' :
+                      'text-yellow-800'
+                    }`}>
+                      {interactionResult.highestSeverity} Drug Interaction Detected!
+                    </h3>
+                    <div className="mt-2 text-sm text-gray-700">
+                      <p><strong>{interactionResult.targetDrug.toUpperCase()}</strong> interacts with medications you are already taking:</p>
+                      <ul className="list-disc pl-5 mt-1 space-y-1">
+                        {interactionResult.interactions.map((interaction: any, i: number) => (
+                          <li key={i}>
+                            <strong>{interaction.drug.toUpperCase()}</strong> - Severity: {interaction.severity}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    {interactionResult.highestSeverity === 'Major' && (
+                      <div className="mt-4">
+                        <Button 
+                          variant="destructive" 
+                          onClick={async () => {
+                            toast.success('SOS Alert sent to caregiver!');
+                            await fetch('/api/sos', { method: 'POST' });
+                          }}
+                        >
+                          Alert Caregiver Now (SOS)
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-primary/5 border border-primary/20 rounded-xl p-6">
               <h3 className="font-bold text-primary flex items-center gap-2 mb-4">
                 <Edit3 className="w-5 h-5" /> Verify & Save Record
@@ -208,7 +385,12 @@ export function CaptureModule() {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Medication Name</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-semibold text-gray-700">Medication Name</label>
+                    {rxcuiStatus === 'pending' && <span className="text-xs text-blue-500 font-medium animate-pulse">Syncing with NIH...</span>}
+                    {rxcuiStatus === 'success' && <span className="text-xs text-green-600 font-bold bg-green-100 px-2 py-0.5 rounded-full">✓ RxNorm Verified</span>}
+                    {rxcuiStatus === 'failed' && <span className="text-xs text-orange-500 font-medium">Unverified Drug Name</span>}
+                  </div>
                   <input 
                     type="text" 
                     value={medName}

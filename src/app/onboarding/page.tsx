@@ -46,8 +46,10 @@ export default function OnboardingPage() {
         ...formData
       };
       
-      // Save locally to bypass Firestore during development
-      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(profileData));
+      // Save to Firestore
+      if (db) {
+        await setDoc(doc(db, 'users', user.uid), profileData);
+      }
       
       await refreshProfile(); // Pull new role into context
       toast.success('Profile created successfully!');
@@ -117,6 +119,11 @@ export default function OnboardingPage() {
                       <Label>Emergency Contact Number</Label>
                       <Input name="emergencyContact" type="tel" required placeholder="Phone number" onChange={handleInputChange} className="mt-1" />
                     </div>
+                    <div className="bg-primary/5 p-4 rounded-xl border border-primary/20">
+                      <Label className="text-primary font-bold">Caregiver's Email Address</Label>
+                      <p className="text-xs text-gray-500 mb-2">They will receive instant alerts if dangerous drug interactions are detected.</p>
+                      <Input name="caregiverEmail" type="email" required placeholder="caregiver@email.com" onChange={handleInputChange} className="mt-1 border-primary/30" />
+                    </div>
                   </>
                 )}
                 
@@ -150,7 +157,16 @@ export default function OnboardingPage() {
                   </>
                 )}
 
-                <div className="flex gap-4 pt-4">
+                <div className="pt-4 border-t border-gray-100">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" required className="mt-1 w-4 h-4 text-primary rounded border-gray-300" />
+                    <span className="text-sm text-gray-600">
+                      <strong>DPDP Act Consent:</strong> I explicitly consent to the collection, processing, and secure storage of my personal and medical data by MedTrail for the purpose of health monitoring and drug interaction safety, in accordance with the Digital Personal Data Protection Act, 2023.
+                    </span>
+                  </label>
+                </div>
+
+                <div className="flex gap-4 pt-2">
                   <Button type="button" variant="outline" onClick={() => setStep(1)} className="w-1/3">Back</Button>
                   <Button type="submit" disabled={isSubmitting} className="w-2/3">
                     {isSubmitting ? 'Saving...' : 'Complete Profile'} <ArrowRight className="w-4 h-4 ml-2" />

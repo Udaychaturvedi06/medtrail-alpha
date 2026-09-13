@@ -33,15 +33,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchProfile = async (uid: string) => {
     try {
-      // Mocking Firestore with localStorage for development
-      const storedData = localStorage.getItem(`profile_${uid}`);
-      if (storedData) {
-        setProfile(JSON.parse(storedData) as UserProfile);
+      if (!db) {
+        console.warn('Firestore is not initialized');
+        setProfile(null);
+        return;
+      }
+      const docRef = doc(db, 'users', uid);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        setProfile(docSnap.data() as UserProfile);
       } else {
         setProfile(null);
       }
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('Error fetching user profile:', error);
       setProfile(null);
     }
   };

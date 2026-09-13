@@ -1,11 +1,46 @@
 import { NextResponse } from 'next/server';
 
+const rateLimit = new Map<string, { count: number; resetTime: number }>();
+
 export async function POST(req: Request) {
   try {
+    // 1. RATE LIMITING CHECK
+    const ip = req.headers.get('x-forwarded-for') || 'unknown-ip';
+    const now = Date.now();
+    const windowMs = 60 * 1000; // 1 minute window
+    const maxRequests = 10; // Max 10 OCR scans per minute
+
+    const userRate = rateLimit.get(ip) || { count: 0, resetTime: now + windowMs };
+    
+    if (now > userRate.resetTime) {
+      userRate.count = 1;
+      userRate.resetTime = now + windowMs;
+    } else {
+      userRate.count += 1;
+      if (userRate.count > maxRequests) {
+        return NextResponse.json({ success: false, error: 'Rate limit exceeded. Please wait before scanning again.' }, { status: 429 });
+      }
+    }
+    rateLimit.set(ip, userRate);
+
+    // 2. GEMINI OCR LOGIC
     const { imageBase64 } = await req.json();
 
     if (!imageBase64) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });
+    }
+
+    // 3. PAYLOAD SIZE VALIDATION
+    // Base64 string size in bytes is roughly (length * 3) / 4
+    const sizeInBytes = (imageBase64.length * 3) / 4;
+    const sizeInMB = sizeInBytes / (1024 * 1024);
+    
+    // Hard limit at 50 MB to prevent memory overload
+    if (sizeInMB > 50) {
+      return NextResponse.json({ 
+        success: false, 
+        error: `Payload too large (${sizeInMB.toFixed(2)} MB). Maximum allowed size is 50 MB.` 
+      }, { status: 413 });
     }
 
     // Check for API key

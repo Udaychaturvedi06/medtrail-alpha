@@ -8,59 +8,66 @@ export function ReminderEngine() {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user) return;
+    let isMounted = true;
+    let unsubRecords: any = null;
+    let records: any[] = [];
 
-    // Check reminders every 30 seconds
+    const setupFirestore = async () => {
+      const { db } = await import('@/lib/firebase');
+      const { collection, onSnapshot } = await import('firebase/firestore');
+      if (!db || !isMounted) return;
+
+      unsubRecords = onSnapshot(collection(db, 'users', user.uid, 'records'), (snapshot) => {
+        records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      });
+    };
+    setupFirestore();
+
     const interval = setInterval(() => {
-      const storageKey = `medtrail_records_${user.uid}`;
-      const records = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      if (records.length === 0) return;
       
       const now = new Date();
-      // Format current time to HH:MM (24-hour format)
       const currentHours = now.getHours().toString().padStart(2, '0');
       const currentMinutes = now.getMinutes().toString().padStart(2, '0');
-      const currentTimeStr = `${currentHours}:${currentMinutes}`;
-      
-      // Keep track of notified reminders to prevent spamming
-      // We will store "YYYY-MM-DD-HH:MM"
-      const dateStr = now.toISOString().split('T')[0];
-      const timeKey = `${dateStr}-${currentTimeStr}`;
+      const currentTimeString = `${currentHours}:${currentMinutes}`;
       
       const notifiedKey = `medtrail_notified_${user.uid}`;
-      const alreadyNotified = JSON.parse(localStorage.getItem(notifiedKey) || '[]');
-      
-      if (alreadyNotified.includes(timeKey)) return;
-
-      let triggered = false;
+      const alreadyNotified = JSON.parse(sessionStorage.getItem(notifiedKey) || '[]');
 
       records.forEach((record: any) => {
-        if (record.reminders && record.reminders.includes(currentTimeStr)) {
-          // Play a loud alert!
-          toast.message(`Time for Medication: ${record.medicationName}`, {
-            description: `Dosage: ${record.dosage || 'Check prescription'}\nFolder: ${record.folder || 'General'}`,
-            duration: 15000,
-            icon: '⏰',
-            action: {
-              label: 'Mark as Taken',
-              onClick: () => toast.success('Medication marked as taken!'),
-            },
+        if (record.reminders && Array.isArray(record.reminders)) {
+          record.reminders.forEach((reminderTime: string) => {
+            if (reminderTime === currentTimeString) {
+              const notificationId = `${record.id}_${currentTimeString}_${now.toDateString()}`;
+              
+              if (!alreadyNotified.includes(notificationId)) {
+                toast.success(`Time to take your medication: ${record.medicationName}`, {
+                  description: `Dosage: ${record.dosage || 'As prescribed'}`,
+                  duration: 10000,
+                  icon: '💊'
+                });
+                
+                alreadyNotified.push(notificationId);
+                
+                if (alreadyNotified.length > 50) {
+                  alreadyNotified.shift();
+                }
+                
+                sessionStorage.setItem(notifiedKey, JSON.stringify(alreadyNotified));
+              }
+            }
           });
-          triggered = true;
         }
       });
+    }, 30000); // Check every 30 seconds
 
-      if (triggered) {
-        // Save that we notified for this exact minute so we don't spam if it checks again within the same minute
-        alreadyNotified.push(timeKey);
-        // keep only the last 50 to prevent localstorage bloat
-        if (alreadyNotified.length > 50) alreadyNotified.shift();
-        localStorage.setItem(notifiedKey, JSON.stringify(alreadyNotified));
-      }
-
-    }, 30000); // run every 30 seconds
-
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      if (unsubRecords) unsubRecords();
+    };
   }, [user]);
 
-  return null; // This is a headless component
+  return null; 
 }

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Activity, Bell, FileText, LayoutDashboard, LogOut, Settings, ShieldAlert, HeartPulse, UserCircle, Users, Stethoscope, Calendar, Pill, Upload, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { ManualChecker } from '@/components/ManualChecker';
 
 type PortalRole = 'patient' | 'caregiver' | 'doctor';
 
@@ -19,6 +20,9 @@ export default function DashboardPage() {
   
   // Local records
   const [records, setRecords] = useState<any[]>([]);
+  
+  // Caregiver Notifications
+  const [notifications, setNotifications] = useState<any[]>([]);
   
   // SOS State
   const [sosActive, setSosActive] = useState(false);
@@ -49,8 +53,8 @@ export default function DashboardPage() {
             console.error(data.error);
             toast.error('Failed to send SOS via Twilio.', { id: loadingToast });
           }
-        } catch (e: any) {
-          toast.error('Network error triggering SOS.', { id: loadingToast });
+        } catch (e) {
+          toast.error('Failed to connect to SOS endpoint.', { id: loadingToast });
         }
       };
       
@@ -65,28 +69,74 @@ export default function DashboardPage() {
     }
   }, [user, profile, loading, router]);
 
-  // Load records (with polling to handle Next.js client router cache navigation)
+  // Read data securely from Firestore (No localStorage)
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user) return;
     
-    const loadRecords = () => {
-      const storageKey = `medtrail_records_${user.uid}`;
-      const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      saved.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
-      // Only update state if length changed or we want to be safe (simple stringify check)
-      setRecords((prev) => {
-        if (JSON.stringify(prev) !== JSON.stringify(saved)) return saved;
-        return prev;
-      });
-    };
+    let unsubRecords: any = null;
+    let unsubNotifications: any = null;
 
-    loadRecords();
+    import('@/lib/firebase').then(({ db }) => {
+      import('firebase/firestore').then(({ collection, query, where, onSnapshot }) => {
+        if (!db) return;
+
+        // 1. Fetch Patient Records
+        const recordsQuery = query(collection(db, 'users', user.uid, 'records'));
+        unsubRecords = onSnapshot(recordsQuery, (snapshot) => {
+          const freshRecords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          freshRecords.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          setRecords(freshRecords);
+        });
+
+        // 2. Fetch Caregiver Notifications
+        if (role === 'caregiver' && user.email) {
+          const notifQuery = query(
+            collection(db, 'notifications'), 
+            where('caregiverEmail', '==', user.email)
+          );
+          unsubNotifications = onSnapshot(notifQuery, (snapshot) => {
+            const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            notifs.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            setNotifications(notifs);
+          });
+        }
+      });
+    });;
+
+    // DPDP Act: Audit Logging for Caregiver / Doctor Access
+    if ((role === 'caregiver' || role === 'doctor') && user.uid) {
+      const logAccess = async () => {
+        try {
+          const { db } = await import('@/lib/firebase');
+          const { collection, addDoc } = await import('firebase/firestore');
+          if (!db) return;
+          
+          await addDoc(collection(db, 'audit_logs'), {
+            accessedByUid: user.uid,
+            accessedByRole: role,
+            accessedByEmail: user.email,
+            action: 'VIEWED_DASHBOARD',
+            timestamp: new Date().toISOString(),
+            ipAddress: 'logged-by-server', // In production, server logs IP
+          });
+        } catch (e) {
+          console.error('Audit log failed', e);
+        }
+      };
+      
+      // We only want to log this once per session to avoid spamming
+      const sessionLogKey = `audit_logged_${user.uid}`;
+      if (!sessionStorage.getItem(sessionLogKey)) {
+        logAccess();
+        sessionStorage.setItem(sessionLogKey, 'true');
+      }
+    }
     
-    // Poll every 1 second while on this page to catch local storage changes from other routes
-    const interval = setInterval(loadRecords, 1000);
-    return () => clearInterval(interval);
-  }, [user?.uid]);
+    return () => {
+      if (unsubRecords) unsubRecords();
+      if (unsubNotifications) unsubNotifications();
+    };
+  }, [user, role]);
 
   if (loading || !user || !profile) {
     return (
@@ -319,11 +369,43 @@ export default function DashboardPage() {
                 </div>
               </motion.div>
 
+              <div className="mb-10">
+                <ManualChecker />
+              </div>
+
               {/* Main Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
                 {/* Timeline (Spans 2 columns) */}
                 <div className="lg:col-span-2 space-y-6">
+
+                  {role === 'caregiver' && notifications.length > 0 && (
+                    <div className="mb-8">
+                      <h2 className="text-2xl font-extrabold text-red-600 tracking-tight flex items-center gap-2 mb-4">
+                        <ShieldAlert className="w-6 h-6" /> Urgent Patient Alerts ({notifications.filter(n => !n.read).length})
+                      </h2>
+                      <div className="space-y-4">
+                        {notifications.map((notif: any) => (
+                          <motion.div 
+                            key={notif.id}
+                            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                            className={`p-5 rounded-2xl border-l-4 shadow-sm ${notif.read ? 'bg-white border-gray-300 opacity-60' : 'bg-red-50 border-red-500'}`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h3 className={`font-bold text-lg ${notif.read ? 'text-gray-700' : 'text-red-800'}`}>
+                                  Severe Interaction Warning
+                                </h3>
+                                <p className="text-gray-800 font-medium mt-1">{notif.message}</p>
+                                <p className="text-xs text-gray-500 mt-2">{new Date(notif.timestamp).toLocaleString()}</p>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
                       {role === 'patient' ? 'Chronological Record' : role === 'caregiver' ? 'Patient Timelines' : 'Patient History'}

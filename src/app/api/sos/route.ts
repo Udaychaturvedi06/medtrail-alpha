@@ -1,7 +1,30 @@
 import { NextResponse } from 'next/server';
 
-export async function POST() {
+// Simple in-memory rate limiting map (IP -> { count, resetTime })
+const rateLimit = new Map<string, { count: number; resetTime: number }>();
+
+export async function POST(request: Request) {
   try {
+    // 1. RATE LIMITING CHECK
+    const ip = request.headers.get('x-forwarded-for') || 'unknown-ip';
+    const now = Date.now();
+    const windowMs = 60 * 1000; // 1 minute window
+    const maxRequests = 3; // Max 3 SOS alerts per minute
+
+    const userRate = rateLimit.get(ip) || { count: 0, resetTime: now + windowMs };
+    
+    if (now > userRate.resetTime) {
+      userRate.count = 1;
+      userRate.resetTime = now + windowMs;
+    } else {
+      userRate.count += 1;
+      if (userRate.count > maxRequests) {
+        return NextResponse.json({ success: false, error: 'Rate limit exceeded. Too many requests.' }, { status: 429 });
+      }
+    }
+    rateLimit.set(ip, userRate);
+
+    // 2. TWILIO LOGIC
     const TWILIO_ACCOUNT_SID = 'AC2b580cfbf6bb05276372bb7ae94de080';
     const TWILIO_AUTH_TOKEN = 'e28def86d60a3e3261c6f7ce3b582fcc';
     
