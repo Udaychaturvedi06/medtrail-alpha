@@ -274,7 +274,7 @@ export default function DashboardPage() {
         <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] opacity-30 pointer-events-none" />
 
         {/* Top Header */}
-        <header className="h-20 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-8 shrink-0 z-10 sticky top-0">
+        <header className="h-20 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 md:px-8 shrink-0 z-10 sticky top-0">
           <Link href="/dashboard" className="flex md:hidden items-center gap-2 text-primary cursor-pointer hover:opacity-80 transition-opacity">
             <HeartPulse className="w-6 h-6" />
             <span className="font-bold text-lg">MedTrail</span>
@@ -532,6 +532,41 @@ export default function DashboardPage() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation & SOS */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-md border-t border-gray-200 z-40 px-6 py-2 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-safe">
+        <div className="flex justify-between items-center relative">
+          <button className="flex flex-col items-center p-2 text-primary">
+            <LayoutDashboard className="w-6 h-6 mb-1" />
+            <span className="text-[10px] font-bold">Home</span>
+          </button>
+          
+          <button className="flex flex-col items-center p-2 text-gray-400 hover:text-primary transition-colors" onClick={() => toast.info('Navigating to Records...')}>
+            <FileText className="w-6 h-6 mb-1" />
+            <span className="text-[10px] font-bold">Records</span>
+          </button>
+
+          {/* Floating SOS Button */}
+          <div className="relative -top-8">
+            <button 
+              onClick={triggerSOS}
+              className="bg-red-600 text-white p-4 rounded-full shadow-[0_8px_16px_rgba(220,38,38,0.4)] flex flex-col items-center justify-center border-4 border-[#f8fafc] active:scale-95 transition-transform"
+            >
+              <ShieldAlert className="w-7 h-7" />
+            </button>
+          </div>
+          
+          <button className="flex flex-col items-center p-2 text-gray-400 hover:text-primary transition-colors" onClick={() => toast.info('Navigating to Settings...')}>
+            <Settings className="w-6 h-6 mb-1" />
+            <span className="text-[10px] font-bold">Settings</span>
+          </button>
+
+          <button className="flex flex-col items-center p-2 text-gray-400 hover:text-red-500 transition-colors" onClick={handleLogout}>
+            <LogOut className="w-6 h-6 mb-1" />
+            <span className="text-[10px] font-bold">Logout</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
