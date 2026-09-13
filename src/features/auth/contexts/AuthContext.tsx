@@ -44,6 +44,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (docSnap.exists()) {
         setProfile(docSnap.data() as UserProfile);
       } else {
+        // Safety Fallback: If profile doc is missing but they have records, reconstruct it
+        try {
+          const { collection, getDocs, limit, query } = await import('firebase/firestore');
+          const q = query(collection(db, 'users', uid, 'records'), limit(1));
+          const recordsSnap = await getDocs(q);
+          
+          if (!recordsSnap.empty) {
+            console.log('Profile document missing but records found! Reconstructing profile...');
+            const recoveredProfile: UserProfile = {
+              role: 'patient',
+              name: auth.currentUser?.displayName || 'Recovered User',
+              email: auth.currentUser?.email || '',
+              recovered: true
+            };
+            setProfile(recoveredProfile);
+            return;
+          }
+        } catch (e) {
+          console.error('Fallback check failed', e);
+        }
+        
         setProfile(null);
       }
     } catch (error) {

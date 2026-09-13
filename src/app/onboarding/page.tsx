@@ -48,7 +48,7 @@ export default function OnboardingPage() {
       
       // Save to Firestore
       if (db) {
-        await setDoc(doc(db, 'users', user.uid), profileData);
+        await setDoc(doc(db, 'users', user.uid), profileData, { merge: true });
       }
       
       await refreshProfile(); // Pull new role into context
