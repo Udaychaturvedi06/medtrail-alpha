@@ -8,6 +8,7 @@ import { Activity, Bell, FileText, LayoutDashboard, LogOut, Settings, ShieldAler
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { ManualChecker } from '@/components/ManualChecker';
+import Link from 'next/link';
 
 type PortalRole = 'patient' | 'caregiver' | 'doctor';
 
@@ -171,10 +172,10 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#f8fafc] flex">
       {/* Sidebar Navigation */}
       <aside className="w-72 bg-white border-r border-gray-100 hidden md:flex flex-col shadow-sm z-20">
-        <div className="h-20 flex items-center gap-3 px-8 border-b border-gray-100 text-primary">
+        <Link href="/dashboard" className="h-20 flex items-center gap-3 px-8 border-b border-gray-100 text-primary cursor-pointer hover:opacity-80 transition-opacity">
           <HeartPulse className="w-7 h-7" />
           <span className="font-extrabold text-2xl tracking-tight">MedTrail</span>
-        </div>
+        </Link>
         
         <div className="px-6 py-4 border-b border-gray-100">
           <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Active Portal</div>
@@ -274,10 +275,10 @@ export default function DashboardPage() {
 
         {/* Top Header */}
         <header className="h-20 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-8 shrink-0 z-10 sticky top-0">
-          <div className="flex md:hidden items-center gap-2 text-primary">
+          <Link href="/dashboard" className="flex md:hidden items-center gap-2 text-primary cursor-pointer hover:opacity-80 transition-opacity">
             <HeartPulse className="w-6 h-6" />
             <span className="font-bold text-lg">MedTrail</span>
-          </div>
+          </Link>
           
           <div className="hidden md:block">
             <h2 className="text-2xl font-bold text-gray-800 capitalize">{role} Portal</h2>

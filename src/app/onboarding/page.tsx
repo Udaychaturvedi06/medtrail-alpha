@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { HeartPulse, Stethoscope, Users, User, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 type Role = 'patient' | 'caregiver' | 'doctor';
 
@@ -68,9 +69,9 @@ export default function OnboardingPage() {
         <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-primary to-blue-400" />
         
         <div className="p-8 md:p-12 pt-10">
-          <div className="flex items-center justify-center mb-8 text-primary">
+          <Link href="/" className="flex items-center justify-center mb-8 text-primary cursor-pointer hover:opacity-80 transition-opacity">
             <HeartPulse className="w-10 h-10" />
-          </div>
+          </Link>
           
           {step === 1 && (
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>

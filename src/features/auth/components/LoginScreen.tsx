@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Activity, ShieldCheck, HeartPulse, Quote } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import Link from 'next/link';
 
 const MISCONCEPTIONS = [
   { text: "Antibiotics cure the common cold and flu.", truth: "Antibiotics only treat bacterial infections, not viruses." },
@@ -92,7 +93,7 @@ export function LoginScreen() {
           {/* Animated Background Pattern */}
           <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay" />
           
-          <div className="relative z-10 flex items-center gap-3">
+          <Link href="/" className="relative z-10 flex items-center gap-3 cursor-pointer">
             <motion.div
               animate={{ scale: [1, 1.1, 1] }}
               transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
@@ -100,7 +101,7 @@ export function LoginScreen() {
               <HeartPulse className="w-10 h-10 text-white" />
             </motion.div>
             <h1 className="text-3xl font-extrabold tracking-tight">MedTrail</h1>
-          </div>
+          </Link>
 
           <div className="relative z-10 space-y-12 max-w-lg min-h-[200px]">
             
@@ -173,10 +174,10 @@ export function LoginScreen() {
         >
           
           {/* Mobile Header */}
-          <div className="flex md:hidden items-center justify-center gap-2 text-primary mb-8">
+          <Link href="/" className="flex md:hidden items-center justify-center gap-2 text-primary mb-8 cursor-pointer">
             <HeartPulse className="w-8 h-8" />
             <h1 className="text-3xl font-extrabold tracking-tight">MedTrail</h1>
-          </div>
+          </Link>
 
           <Card className="border-0 shadow-[0_8px_30px_rgb(0,0,0,0.08)] bg-white/80 backdrop-blur-xl rounded-3xl overflow-hidden relative">
             <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-primary to-blue-400 z-10" />
