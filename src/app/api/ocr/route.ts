@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     // Strip the "data:image/jpeg;base64," prefix if present
     const base64Data = imageBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const prompt = `
       You are a highly accurate medical OCR system.
