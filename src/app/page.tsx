@@ -11,13 +11,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!loading && user) {
-      if (profile?.role) {
-        router.push('/dashboard');
-      } else {
-        router.push('/onboarding');
-      }
+      // Always route to dashboard if they are signed in, bypass onboarding loops entirely
+      router.push('/dashboard');
     }
-  }, [user, profile, loading, router]);
+  }, [user, loading, router]);
 
   if (loading) {
     return (
