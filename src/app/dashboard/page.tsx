@@ -374,6 +374,8 @@ export default function DashboardPage() {
                   )}
                 </div>
               </motion.div>
+                </>
+              )}
 
 
 
@@ -535,10 +537,8 @@ export default function DashboardPage() {
                 
               </div>
             )}
-                </>
-              )}
 
-              {/* Interactions Tab */}
+            {/* Interactions Tab */}
               {activeTab === 'interactions' && (
                 <div className="pt-4">
                   <ManualChecker />
