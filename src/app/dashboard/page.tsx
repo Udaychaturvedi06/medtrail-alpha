@@ -4,7 +4,7 @@ import { useAuth } from '@/features/auth/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Activity, Bell, FileText, LayoutDashboard, LogOut, Settings, ShieldAlert, HeartPulse, UserCircle, Users, Stethoscope, Calendar, Pill, Upload, ShieldCheck } from 'lucide-react';
+import { Activity, Bell, FileText, LayoutDashboard, LogOut, Settings, ShieldAlert, HeartPulse, UserCircle, Users, Stethoscope, Calendar, Pill, Upload, ShieldCheck, ImageIcon, X, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { ManualChecker } from '@/components/ManualChecker';
@@ -31,6 +31,9 @@ export default function DashboardPage() {
 
   // Tab State
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Selected Image for Modal
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Handle SOS trigger
   const triggerSOS = () => {
@@ -474,11 +477,21 @@ export default function DashboardPage() {
                                     <div className="bg-primary/10 p-3 rounded-xl text-primary mt-1">
                                       <Pill className="w-6 h-6" />
                                     </div>
-                                    <div className="flex-1">
-                                      <div className="flex items-start justify-between mb-1">
-                                        <h4 className="text-lg font-bold text-gray-900 leading-tight">{record.medicationName || 'Unknown Medication'}</h4>
-                                      </div>
-                                      <p className="text-gray-600 font-medium text-sm mb-1"><span className="text-gray-400">Dosage:</span> {record.dosage}</p>
+                                      <div className="flex-1">
+                                        <div className="flex items-start justify-between mb-1">
+                                          <h4 className="text-lg font-bold text-gray-900 leading-tight">{record.medicationName || 'Unknown Medication'}</h4>
+                                          {record.imageUrl && (
+                                            <button 
+                                              onClick={() => setSelectedImage(record.imageUrl)}
+                                              className="text-primary hover:text-blue-700 bg-blue-50 hover:bg-blue-100 p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-bold shrink-0"
+                                              title="View Original Prescription"
+                                            >
+                                              <ImageIcon className="w-3.5 h-3.5" />
+                                              <span className="hidden sm:inline">View</span>
+                                            </button>
+                                          )}
+                                        </div>
+                                        <p className="text-gray-600 font-medium text-sm mb-1"><span className="text-gray-400">Dosage:</span> {record.dosage}</p>
                                       {record.reminders && record.reminders.length > 0 && (
                                         <div className="flex flex-wrap gap-1 mt-2">
                                           {record.reminders.map((time: string, idx: number) => (
@@ -597,6 +610,43 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Fullscreen Image Lightbox Modal */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 md:p-10"
+            onClick={() => setSelectedImage(null)}
+          >
+            <button 
+              className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedImage(null);
+              }}
+            >
+              <X className="w-8 h-8" />
+            </button>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()} // Prevent clicking image from closing modal
+            >
+              <img 
+                src={selectedImage} 
+                alt="Prescription Document" 
+                className="w-full h-full object-contain max-h-[90vh]"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
