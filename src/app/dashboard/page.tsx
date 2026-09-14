@@ -4,7 +4,7 @@ import { useAuth } from '@/features/auth/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Activity, Bell, FileText, LayoutDashboard, LogOut, Settings, ShieldAlert, HeartPulse, UserCircle, Users, Stethoscope, Calendar, Pill, Upload, ShieldCheck, ImageIcon, X, Eye } from 'lucide-react';
+import { Activity, Bell, FileText, LayoutDashboard, LogOut, Settings, ShieldAlert, HeartPulse, UserCircle, Users, Stethoscope, Calendar, Pill, Upload, ShieldCheck, ImageIcon, X, Eye, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { ManualChecker } from '@/components/ManualChecker';
@@ -34,6 +34,22 @@ export default function DashboardPage() {
 
   // Selected Image for Modal
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  const handleDeleteRecord = async (recordId: string) => {
+    if (!user) return;
+    if (confirm('Are you sure you want to delete this prescription? This action cannot be undone.')) {
+      try {
+        const { db } = await import('@/lib/firebase');
+        const { doc, deleteDoc } = await import('firebase/firestore');
+        if (db) {
+          await deleteDoc(doc(db, 'users', user.uid, 'records', recordId));
+          toast.success('Prescription deleted.');
+        }
+      } catch (err) {
+        toast.error('Failed to delete prescription.');
+      }
+    }
+  };
 
   // Handle SOS trigger
   const triggerSOS = () => {
@@ -424,7 +440,9 @@ export default function DashboardPage() {
                     <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
                       {role === 'patient' ? 'Chronological Record' : role === 'caregiver' ? 'Patient Timelines' : 'Patient History'}
                     </h2>
-                    <Button variant="ghost" onClick={() => setActiveTab('prescriptions')} className="font-bold text-primary hover:bg-primary/10">View All →</Button>
+                    {activeTab !== 'prescriptions' && (
+                      <Button variant="ghost" onClick={() => setActiveTab('prescriptions')} className="font-bold text-primary hover:bg-primary/10">View All →</Button>
+                    )}
                   </div>
                   
                   <div>
@@ -490,6 +508,13 @@ export default function DashboardPage() {
                                               <span className="hidden sm:inline">View</span>
                                             </button>
                                           )}
+                                          <button 
+                                            onClick={() => handleDeleteRecord(record.id)}
+                                            className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-bold shrink-0 ml-2"
+                                            title="Delete Prescription"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
                                         </div>
                                         <p className="text-gray-600 font-medium text-sm mb-1"><span className="text-gray-400">Dosage:</span> {record.dosage}</p>
                                       {record.reminders && record.reminders.length > 0 && (
