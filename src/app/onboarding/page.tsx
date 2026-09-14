@@ -134,24 +134,24 @@ export default function OnboardingPage() {
                           <option value="O-">O-</option>
                         </select>
                       </div>
-                      <div>
-                        <Label>Emergency Contact Number</Label>
-                        <Input name="emergencyContact" type="tel" pattern="^\+?[0-9\s\-\(\)]{7,15}$" title="Please enter a valid phone number" required placeholder="Phone number" onChange={handleInputChange} className="mt-1" />
-                      </div>
-                      <div className="bg-primary/5 p-4 rounded-xl border border-primary/20">
-                        <Label className="text-primary font-bold">Caregiver's Email Address</Label>
-                        <p className="text-xs text-gray-500 mb-2">They will receive instant alerts if dangerous drug interactions are detected.</p>
-                        <Input name="caregiverEmail" type="email" required placeholder="caregiver@email.com" onChange={handleInputChange} className="mt-1 border-primary/30" />
-                      </div>
-                    </>
-                  )}
-                  
-                  {selectedRole === 'caregiver' && (
-                    <>
-                      <div>
-                        <Label>Your Phone Number</Label>
-                        <Input name="phone" type="tel" pattern="^\+?[0-9\s\-\(\)]{7,15}$" title="Please enter a valid phone number" required placeholder="For SOS alerts" onChange={handleInputChange} className="mt-1" />
-                      </div>
+                        <div>
+                          <Label>Emergency Contact Number</Label>
+                          <Input name="emergencyContact" type="tel" pattern="^\+?[0-9]{10,15}$" title="Enter a valid 10-15 digit phone number (no spaces or dashes)" required placeholder="e.g. +919876543210" onChange={handleInputChange} className="mt-1" />
+                        </div>
+                        <div className="bg-primary/5 p-4 rounded-xl border border-primary/20">
+                          <Label className="text-primary font-bold">Caregiver's Email Address</Label>
+                          <p className="text-xs text-gray-500 mb-2">They will receive instant alerts if dangerous drug interactions are detected.</p>
+                          <Input name="caregiverEmail" type="email" required placeholder="caregiver@email.com" onChange={handleInputChange} className="mt-1 border-primary/30" />
+                        </div>
+                      </>
+                    )}
+                    
+                    {selectedRole === 'caregiver' && (
+                      <>
+                        <div>
+                          <Label>Your Phone Number</Label>
+                          <Input name="phone" type="tel" pattern="^\+?[0-9]{10,15}$" title="Enter a valid 10-15 digit phone number (no spaces or dashes)" required placeholder="e.g. +919876543210" onChange={handleInputChange} className="mt-1" />
+                        </div>
                       <div>
                         <Label>Primary Relationship to Patient</Label>
                       <Input name="relationship" required placeholder="e.g. Son, Daughter, Nurse" onChange={handleInputChange} className="mt-1" />
