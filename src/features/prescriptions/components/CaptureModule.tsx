@@ -228,11 +228,16 @@ export function CaptureModule() {
           if (uploadRes.ok) {
             const cloudinaryData = await uploadRes.json();
             uploadedImageUrl = cloudinaryData.secure_url;
+          } else {
+            uploadedImageUrl = imageSrc; // Fallback to base64 if upload fails
           }
+        } else {
+          uploadedImageUrl = imageSrc; // Fallback to base64 if Cloudinary is not configured
         }
       }
     } catch (err) {
       console.error('Cloudinary upload failed:', err);
+      uploadedImageUrl = imageSrc; // Fallback to base64 if Cloudinary throws an error
     }
 
     try {
