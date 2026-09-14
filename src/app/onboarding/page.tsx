@@ -113,37 +113,47 @@ export default function OnboardingPage() {
               <h1 className="text-2xl font-bold mb-2">Let's get some basic details</h1>
               <p className="text-gray-500 mb-8 capitalize">Setting up your {selectedRole} profile.</p>
               
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {selectedRole === 'patient' && (
-                  <>
-                    <div>
-                      <Label>Age</Label>
-                      <Input name="age" type="number" required placeholder="e.g. 65" onChange={handleInputChange} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label>Blood Group</Label>
-                      <Input name="bloodGroup" required placeholder="e.g. O+" onChange={handleInputChange} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label>Emergency Contact Number</Label>
-                      <Input name="emergencyContact" type="tel" required placeholder="Phone number" onChange={handleInputChange} className="mt-1" />
-                    </div>
-                    <div className="bg-primary/5 p-4 rounded-xl border border-primary/20">
-                      <Label className="text-primary font-bold">Caregiver's Email Address</Label>
-                      <p className="text-xs text-gray-500 mb-2">They will receive instant alerts if dangerous drug interactions are detected.</p>
-                      <Input name="caregiverEmail" type="email" required placeholder="caregiver@email.com" onChange={handleInputChange} className="mt-1 border-primary/30" />
-                    </div>
-                  </>
-                )}
-                
-                {selectedRole === 'caregiver' && (
-                  <>
-                    <div>
-                      <Label>Your Phone Number</Label>
-                      <Input name="phone" type="tel" required placeholder="For SOS alerts" onChange={handleInputChange} className="mt-1" />
-                    </div>
-                    <div>
-                      <Label>Primary Relationship to Patient</Label>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {selectedRole === 'patient' && (
+                    <>
+                      <div>
+                        <Label>Age</Label>
+                        <Input name="age" type="number" min="0" max="120" required placeholder="e.g. 65" onChange={handleInputChange} className="mt-1" />
+                      </div>
+                      <div>
+                        <Label>Blood Group</Label>
+                        <select name="bloodGroup" required onChange={(e: any) => handleInputChange(e)} className="w-full border border-gray-300 rounded-lg p-2 mt-1 text-sm outline-none focus:ring-2 focus:ring-primary bg-white h-10">
+                          <option value="">Select Blood Group</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label>Emergency Contact Number</Label>
+                        <Input name="emergencyContact" type="tel" pattern="^\+?[0-9\s\-\(\)]{7,15}$" title="Please enter a valid phone number" required placeholder="Phone number" onChange={handleInputChange} className="mt-1" />
+                      </div>
+                      <div className="bg-primary/5 p-4 rounded-xl border border-primary/20">
+                        <Label className="text-primary font-bold">Caregiver's Email Address</Label>
+                        <p className="text-xs text-gray-500 mb-2">They will receive instant alerts if dangerous drug interactions are detected.</p>
+                        <Input name="caregiverEmail" type="email" required placeholder="caregiver@email.com" onChange={handleInputChange} className="mt-1 border-primary/30" />
+                      </div>
+                    </>
+                  )}
+                  
+                  {selectedRole === 'caregiver' && (
+                    <>
+                      <div>
+                        <Label>Your Phone Number</Label>
+                        <Input name="phone" type="tel" pattern="^\+?[0-9\s\-\(\)]{7,15}$" title="Please enter a valid phone number" required placeholder="For SOS alerts" onChange={handleInputChange} className="mt-1" />
+                      </div>
+                      <div>
+                        <Label>Primary Relationship to Patient</Label>
                       <Input name="relationship" required placeholder="e.g. Son, Daughter, Nurse" onChange={handleInputChange} className="mt-1" />
                     </div>
                   </>

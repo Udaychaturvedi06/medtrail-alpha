@@ -225,6 +225,22 @@ export function CaptureModule() {
       toast.error('No drugs to save');
       return;
     }
+
+    // Validation Check
+    for (const drug of extractedDrugs) {
+      if (drug.medicationName.trim().length < 2) {
+        toast.error(`Invalid medication name: "${drug.medicationName}". Please enter a valid name.`);
+        return;
+      }
+      if (!drug.dosage || drug.dosage.trim().length === 0) {
+        toast.error(`Please specify a valid dosage for ${drug.medicationName}`);
+        return;
+      }
+      if (!drug.duration || drug.duration.trim().length === 0) {
+        toast.error(`Please specify a duration for ${drug.medicationName} (e.g. "5 days")`);
+        return;
+      }
+    }
     
     setIsSaving(true);
     let uploadedImageUrl = '';

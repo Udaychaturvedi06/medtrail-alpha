@@ -593,10 +593,23 @@ export default function DashboardPage() {
                   <Users className="w-16 h-16 text-blue-500 mx-auto mb-4" />
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">Patient Directory Search</h2>
                   <p className="text-gray-500 mb-6">Search for patients by email, phone, or MedTrail ID to view their clinical timeline and interaction warnings.</p>
-                  <div className="flex max-w-md mx-auto gap-2">
-                    <input type="text" placeholder="Patient Email or ID" className="flex-1 border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-primary" />
-                    <Button className="px-6 font-bold">Search</Button>
-                  </div>
+                  <form 
+                    className="flex max-w-md mx-auto gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const input = (e.target as HTMLFormElement).elements.namedItem('searchQuery') as HTMLInputElement;
+                      const query = input.value.trim();
+                      if (query.length < 3) {
+                        toast.error('Search query must be at least 3 characters long.');
+                        return;
+                      }
+                      // Search functionality goes here
+                      toast.info(`Searching for: ${query}`);
+                    }}
+                  >
+                    <input name="searchQuery" type="text" placeholder="Patient Email or ID" className="flex-1 border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-primary" />
+                    <Button type="submit" className="px-6 font-bold">Search</Button>
+                  </form>
                 </div>
               )}
 
@@ -626,16 +639,22 @@ export default function DashboardPage() {
                     const newName = (form.elements.namedItem('displayName') as HTMLInputElement).value;
                     const newPhone = (form.elements.namedItem('phone') as HTMLInputElement).value;
                     const newEmergency = (form.elements.namedItem('emergency') as HTMLInputElement).value;
+                    const bloodGroupInput = form.elements.namedItem('bloodGroup') as HTMLSelectElement | null;
+                    const newBloodGroup = bloodGroupInput ? bloodGroupInput.value : undefined;
                     
                     try {
                       const { db } = await import('@/lib/firebase');
                       const { doc, updateDoc } = await import('firebase/firestore');
                       if (db) {
-                        await updateDoc(doc(db, 'users', user.uid), {
+                        const updateData: any = {
                           displayName: newName,
                           phone: newPhone,
                           emergencyContactEmail: newEmergency
-                        });
+                        };
+                        if (newBloodGroup !== undefined) {
+                          updateData.bloodGroup = newBloodGroup;
+                        }
+                        await updateDoc(doc(db, 'users', user.uid), updateData);
                         toast.success('Settings updated successfully!');
                       }
                     } catch (err) {
@@ -659,10 +678,32 @@ export default function DashboardPage() {
                       <input 
                         name="phone"
                         type="tel" 
+                        pattern="^\+?[0-9\s\-\(\)]{7,15}$"
+                        title="Please enter a valid phone number"
                         defaultValue={profile?.phone || ''}
                         className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary outline-none" 
                       />
                     </div>
+                    {role === 'patient' && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
+                        <select 
+                          name="bloodGroup" 
+                          defaultValue={profile?.bloodGroup || ''}
+                          className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary outline-none bg-white"
+                        >
+                          <option value="">Select Blood Group</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-4 border-t border-gray-100">
