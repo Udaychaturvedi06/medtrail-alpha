@@ -2,9 +2,9 @@
 
 import { useState, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, Upload, X, CheckCircle2, Loader2, Clock, FolderPlus, Edit3, Plus, Trash2, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Camera, Upload, X, CheckCircle2, Loader2, Clock, FolderPlus, Edit3, Plus, Trash2, AlertTriangle, FileText, User, Stethoscope, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/features/auth/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -15,6 +15,7 @@ type ExtractedDrug = {
   id: string;
   medicationName: string;
   dosage: string;
+  duration: string;
   folder: string;
   reminders: string[];
   rxcui: string | null;
@@ -23,23 +24,33 @@ type ExtractedDrug = {
   interactionResult: any | null;
 };
 
+type PrescriptionMeta = {
+  documentType: string;
+  doctorName: string;
+  diagnosis: string;
+  advice: string;
+  followUp: string;
+};
+
 export function CaptureModule() {
   const [mode, setMode] = useState<CaptureMode>('select');
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   
   const [extractedDrugs, setExtractedDrugs] = useState<ExtractedDrug[]>([]);
+  const [prescriptionMeta, setPrescriptionMeta] = useState<PrescriptionMeta | null>(null);
   const [newReminderTime, setNewReminderTime] = useState<{ [key: string]: string }>({});
   
   const [isSaving, setIsSaving] = useState(false);
 
   const webcamRef = useRef<Webcam>(null);
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   const handleRetake = () => {
     setImageSrc(null);
     setMode('select');
     setExtractedDrugs([]);
+    setPrescriptionMeta(null);
   };
 
   const capture = useCallback(() => {
@@ -76,12 +87,24 @@ export function CaptureModule() {
       
       if (!res.ok) throw new Error(responseData.error || 'OCR Processing failed');
       
-      const dataArray = Array.isArray(responseData.data) ? responseData.data : [responseData.data];
+      // New format extracts metadata and medications array
+      const apiData = responseData.data;
+      
+      setPrescriptionMeta({
+        documentType: apiData.documentType || 'UNKNOWN',
+        doctorName: apiData.doctorName || '',
+        diagnosis: apiData.diagnosis || '',
+        advice: apiData.advice || '',
+        followUp: apiData.followUp || ''
+      });
+      
+      const dataArray = Array.isArray(apiData.medications) ? apiData.medications : [];
       
       const initialDrugs: ExtractedDrug[] = dataArray.map((d: any) => ({
         id: Math.random().toString(36).substring(7),
         medicationName: d.medicationName || '',
         dosage: d.dosage || '',
+        duration: d.duration || '',
         folder: 'General',
         reminders: d.frequency ? guessReminders(d.frequency) : [],
         rxcui: null,
@@ -114,13 +137,10 @@ export function CaptureModule() {
 
   const verifyDrug = async (id: string, name: string) => {
     if (!name) return;
-    
     updateDrug(id, { rxcuiStatus: 'pending' });
-    
     try {
       const res = await fetch(`/api/rxnorm?name=${encodeURIComponent(name)}`);
       const data = await res.json();
-      
       if (data.rxcui && data.ingredient) {
         updateDrug(id, { 
           rxcui: data.rxcui, 
@@ -168,7 +188,6 @@ export function CaptureModule() {
       const data = await res.json();
       if (data.highestSeverity && data.highestSeverity !== 'None') {
         updateDrug(id, { interactionResult: data });
-        
         if (data.highestSeverity === 'Major') {
           toast.error(`SEVERE INTERACTION for ${newIngredient}`, { duration: 5000 });
         }
@@ -191,6 +210,7 @@ export function CaptureModule() {
       id: Math.random().toString(36).substring(7),
       medicationName: '',
       dosage: '',
+      duration: '',
       folder: 'General',
       reminders: [],
       rxcui: null,
@@ -229,15 +249,15 @@ export function CaptureModule() {
             const cloudinaryData = await uploadRes.json();
             uploadedImageUrl = cloudinaryData.secure_url;
           } else {
-            uploadedImageUrl = imageSrc; // Fallback to base64 if upload fails
+            uploadedImageUrl = imageSrc || ''; 
           }
         } else {
-          uploadedImageUrl = imageSrc; // Fallback to base64 if Cloudinary is not configured
+          uploadedImageUrl = imageSrc || ''; 
         }
       }
     } catch (err) {
       console.error('Cloudinary upload failed:', err);
-      uploadedImageUrl = imageSrc; // Fallback to base64 if Cloudinary throws an error
+      uploadedImageUrl = imageSrc || '';
     }
 
     try {
@@ -254,12 +274,14 @@ export function CaptureModule() {
           date: dateStr,
           medicationName: drug.medicationName,
           dosage: drug.dosage,
+          duration: drug.duration,
           folder: drug.folder,
           reminders: drug.reminders,
           rxcui: drug.rxcui,
           ingredient: drug.ingredient,
           imageUrl: uploadedImageUrl,
-          rawOcrData: drug
+          rawOcrData: drug,
+          prescriptionMeta: prescriptionMeta // attach the prescription metadata to every drug
         };
         await setDoc(doc(db, 'users', user.uid, 'records', recordId), newRecord);
       }));
@@ -275,7 +297,7 @@ export function CaptureModule() {
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto shadow-xl border-0 overflow-hidden">
+    <Card className="w-full max-w-3xl mx-auto shadow-xl border-0 overflow-hidden">
       <div className="bg-gradient-to-r from-primary to-blue-500 p-6 text-white text-center">
         <h2 className="text-2xl font-extrabold flex justify-center items-center gap-2">
           {mode === 'select' && <><Camera /> Scan Document</>}
@@ -287,7 +309,7 @@ export function CaptureModule() {
         </h2>
         <p className="opacity-90 mt-1 font-medium">
           {mode === 'select' && "Upload a prescription or medicine strip"}
-          {mode === 'review' && "Verify the extracted medications before saving"}
+          {mode === 'review' && "Verify the extracted medications and metadata before saving"}
         </p>
       </div>
 
@@ -333,14 +355,68 @@ export function CaptureModule() {
           <div className="py-20 flex flex-col items-center justify-center space-y-4">
             <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
             <h3 className="text-xl font-bold text-gray-800">Reading Medical Data...</h3>
-            <p className="text-gray-500 font-medium">Extracting multiple medications with Gemini AI.</p>
+            <p className="text-gray-500 font-medium">Extracting Doctor's notes and medications.</p>
           </div>
         )}
 
         {mode === 'review' && (
           <div className="space-y-6">
+            {/* Prescription Metadata Panel */}
+            {prescriptionMeta && prescriptionMeta.documentType === 'PRESCRIPTION' && (
+              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-5 mb-6">
+                <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2">
+                  <FileText className="w-5 h-5"/> Prescription Overview
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">Doctor / Clinic</label>
+                    <div className="flex items-center gap-2 text-blue-900 bg-white px-3 py-2 rounded-lg border border-blue-100">
+                      <Stethoscope className="w-4 h-4 text-blue-400"/>
+                      <input 
+                        className="bg-transparent border-none outline-none w-full font-medium"
+                        value={prescriptionMeta.doctorName}
+                        onChange={(e) => setPrescriptionMeta({...prescriptionMeta, doctorName: e.target.value})}
+                        placeholder="Not found"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">Diagnosis / Symptoms</label>
+                    <div className="flex items-center gap-2 text-blue-900 bg-white px-3 py-2 rounded-lg border border-blue-100">
+                      <User className="w-4 h-4 text-blue-400"/>
+                      <input 
+                        className="bg-transparent border-none outline-none w-full font-medium"
+                        value={prescriptionMeta.diagnosis}
+                        onChange={(e) => setPrescriptionMeta({...prescriptionMeta, diagnosis: e.target.value})}
+                        placeholder="Not found"
+                      />
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">General Advice & Notes</label>
+                    <textarea 
+                      className="bg-white border border-blue-100 outline-none w-full font-medium text-blue-900 px-3 py-2 rounded-lg resize-none"
+                      rows={2}
+                      value={prescriptionMeta.advice}
+                      onChange={(e) => setPrescriptionMeta({...prescriptionMeta, advice: e.target.value})}
+                      placeholder="e.g. Drink warm water, avoid cold food"
+                    />
+                  </div>
+                  {prescriptionMeta.followUp && (
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">Follow-up Visit</label>
+                      <div className="flex items-center gap-2 text-blue-900 bg-white px-3 py-2 rounded-lg border border-blue-100 w-fit">
+                        <Calendar className="w-4 h-4 text-blue-400"/>
+                        <span className="font-medium">{prescriptionMeta.followUp}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-lg text-gray-800">Extracted Medications ({extractedDrugs.length})</h3>
+              <h3 className="font-bold text-lg text-gray-800">Medications ({extractedDrugs.length})</h3>
               <Button size="sm" variant="outline" onClick={addDrug}><Plus className="w-4 h-4 mr-1"/> Add Drug</Button>
             </div>
             
@@ -359,7 +435,7 @@ export function CaptureModule() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Medication Name</label>
                     <input 
@@ -376,6 +452,16 @@ export function CaptureModule() {
                       type="text" 
                       value={drug.dosage}
                       onChange={(e) => updateDrug(drug.id, { dosage: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary outline-none" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Duration</label>
+                    <input 
+                      type="text" 
+                      value={drug.duration}
+                      placeholder="e.g. 5 days"
+                      onChange={(e) => updateDrug(drug.id, { duration: e.target.value })}
                       className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary outline-none" 
                     />
                   </div>
