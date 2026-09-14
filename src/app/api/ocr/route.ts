@@ -59,15 +59,18 @@ export async function POST(req: Request) {
 
     const prompt = `
       You are a highly accurate medical OCR system.
-      Extract the structured data from this image of a medicine strip or prescription.
-      Return ONLY a raw JSON object with the following schema:
-      {
-        "medicationName": "string (brand or generic name)",
-        "dosage": "string (e.g. 500mg, 10ml)",
-        "frequency": "string (e.g. twice a day) - if visible, else null",
-        "confidenceScore": number (0 to 100 based on readability)
-      }
-      Do not include markdown blocks like \`\`\`json. Just the raw JSON.
+      Extract the structured data from this image of a medicine strip or prescription. 
+      Prescriptions usually contain MULTIPLE medications. Extract ALL of them.
+      Return ONLY a raw JSON array of objects with the following schema:
+      [
+        {
+          "medicationName": "string (brand or generic name)",
+          "dosage": "string (e.g. 500mg, 10ml, etc)",
+          "frequency": "string (e.g. twice a day) - if visible, else null",
+          "confidenceScore": number (0 to 100 based on readability)
+        }
+      ]
+      Do not include markdown blocks like \`\`\`json. Just the raw JSON array.
     `;
 
     const requestBody = {

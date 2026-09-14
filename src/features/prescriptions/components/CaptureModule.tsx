@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, Upload, X, CheckCircle2, Loader2, Clock, FolderPlus, Edit3, Plus, Trash2 } from 'lucide-react';
+import { Camera, Upload, X, CheckCircle2, Loader2, Clock, FolderPlus, Edit3, Plus, Trash2, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/features/auth/contexts/AuthContext';
@@ -11,33 +11,41 @@ import { toast } from 'sonner';
 
 type CaptureMode = 'select' | 'camera' | 'preview' | 'processing' | 'review' | 'result';
 
+type ExtractedDrug = {
+  id: string;
+  medicationName: string;
+  dosage: string;
+  folder: string;
+  reminders: string[];
+  rxcui: string | null;
+  ingredient: string | null;
+  rxcuiStatus: 'pending' | 'success' | 'failed' | 'idle';
+  interactionResult: any | null;
+};
+
 export function CaptureModule() {
   const [mode, setMode] = useState<CaptureMode>('select');
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [ocrData, setOcrData] = useState<any>(null);
   
-  // Form State
-  const [medName, setMedName] = useState('');
-  const [dosage, setDosage] = useState('');
-  const [folder, setFolder] = useState('General');
-  const [reminders, setReminders] = useState<string[]>([]);
-  const [newReminderTime, setNewReminderTime] = useState('');
-  const [rxcui, setRxcui] = useState<string | null>(null);
-  const [ingredient, setIngredient] = useState<string | null>(null);
-  const [rxcuiStatus, setRxcuiStatus] = useState<'pending' | 'success' | 'failed' | 'idle'>('idle');
-
-  const [interactionResult, setInteractionResult] = useState<any>(null);
+  const [extractedDrugs, setExtractedDrugs] = useState<ExtractedDrug[]>([]);
+  const [newReminderTime, setNewReminderTime] = useState<{ [key: string]: string }>({});
+  
+  const [isSaving, setIsSaving] = useState(false);
 
   const webcamRef = useRef<Webcam>(null);
   const { user, profile } = useAuth();
   const router = useRouter();
 
-  // ... (keeping other methods same)
-  
+  const handleRetake = () => {
+    setImageSrc(null);
+    setMode('select');
+    setExtractedDrugs([]);
+  };
+
   const capture = useCallback(() => {
     if (webcamRef.current) {
-      const imageSrc = webcamRef.current.getScreenshot();
-      setImageSrc(imageSrc);
+      const src = webcamRef.current.getScreenshot();
+      setImageSrc(src);
       setMode('preview');
     }
   }, [webcamRef]);
@@ -52,83 +60,6 @@ export function CaptureModule() {
       };
       reader.readAsDataURL(file);
     }
-  };
-  
-  const checkInteractions = async (newIngredient: string) => {
-    try {
-      if (!user?.uid) return;
-      
-      const { db } = await import('@/lib/firebase');
-      const { collection, getDocs } = await import('firebase/firestore');
-      if (!db) return;
-
-      const querySnapshot = await getDocs(collection(db, 'users', user.uid, 'records'));
-      const existingIngredients: string[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.ingredient) existingIngredients.push(data.ingredient);
-      });
-
-      if (existingIngredients.length === 0) return;
-      
-      const idToken = await user.getIdToken();
-
-      const res = await fetch('/api/check-interaction', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({
-          newDrugIngredient: newIngredient,
-          existingDrugIngredients: existingIngredients
-        })
-      });
-      
-      const data = await res.json();
-      if (data.highestSeverity && data.highestSeverity !== 'None') {
-        setInteractionResult(data);
-        
-        // Auto-Trigger SOS for Major Interactions
-        if (data.highestSeverity === 'Major') {
-          toast.error('SEVERE INTERACTION DETECTED: Notifying caregiver immediately...', { duration: 5000 });
-          fetch('/api/sos', { method: 'POST' })
-            .then(() => toast.success('Caregiver successfully alerted via WhatsApp.'))
-            .catch(e => console.error('Failed to auto-send SOS', e));
-            
-          // In-App Caregiver Notification
-          const { collection: fsCollection, addDoc } = await import('firebase/firestore');
-          if (profile && db) {
-            if (profile.caregiverEmail) {
-              await addDoc(fsCollection(db, 'notifications'), {
-                caregiverEmail: profile.caregiverEmail,
-                patientName: profile.name || user?.email,
-                patientUid: user?.uid,
-                type: 'SEVERE_INTERACTION',
-                message: `DANGER: ${profile.name || user?.email} just scanned ${data.targetDrug.toUpperCase()} which has a SEVERE interaction with their existing medications.`,
-                targetDrug: data.targetDrug,
-                interactions: data.interactions,
-                timestamp: new Date().toISOString(),
-                read: false
-              });
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Interaction check failed', e);
-    }
-  };
-
-  const handleRetake = () => {
-    setImageSrc(null);
-    setMode('select');
-    setOcrData(null);
-    setReminders([]);
-    setRxcui(null);
-    setIngredient(null);
-    setRxcuiStatus('idle');
-    setInteractionResult(null);
   };
 
   const handleProcessImage = async () => {
@@ -145,339 +76,370 @@ export function CaptureModule() {
       
       if (!res.ok) throw new Error(responseData.error || 'OCR Processing failed');
       
-      const extractedMedName = responseData.data.medicationName || '';
-      setOcrData(responseData.data);
-      setMedName(extractedMedName);
-      setDosage(responseData.data.dosage || '');
-      setMode('review');
-
-      // Now query RxNorm in the background to get the official RxCUI
-      if (extractedMedName) {
-        setRxcuiStatus('pending');
-        fetch(`/api/rxnorm?name=${encodeURIComponent(extractedMedName)}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.rxcui) {
-              setRxcui(data.rxcui);
-              setIngredient(data.ingredient);
-              setRxcuiStatus('success');
-              
-              if (data.ingredient) {
-                checkInteractions(data.ingredient);
-              }
-            } else {
-              setRxcuiStatus('failed');
-            }
-          })
-          .catch(() => setRxcuiStatus('failed'));
-      }
+      const dataArray = Array.isArray(responseData.data) ? responseData.data : [responseData.data];
       
-    } catch (error: any) {
+      const initialDrugs: ExtractedDrug[] = dataArray.map((d: any) => ({
+        id: Math.random().toString(36).substring(7),
+        medicationName: d.medicationName || '',
+        dosage: d.dosage || '',
+        folder: 'General',
+        reminders: d.frequency ? guessReminders(d.frequency) : [],
+        rxcui: null,
+        ingredient: null,
+        rxcuiStatus: 'idle',
+        interactionResult: null
+      }));
+      
+      setExtractedDrugs(initialDrugs);
+      setMode('review');
+      
+      // Auto trigger verification for all
+      initialDrugs.forEach(drug => verifyDrug(drug.id, drug.medicationName));
+      
+    } catch (error) {
       console.error(error);
-      toast.error(error.message || 'Failed to process image');
+      toast.error('Failed to analyze image. Please try again.');
       setMode('preview');
     }
   };
 
-  const handleAddReminder = () => {
-    if (newReminderTime && !reminders.includes(newReminderTime)) {
-      setReminders([...reminders, newReminderTime]);
-      setNewReminderTime('');
+  const guessReminders = (freq: string): string[] => {
+    const f = freq.toLowerCase();
+    if (f.includes('twice') || f.includes('2 times') || f.includes('bd') || f.includes('bid')) return ['09:00', '21:00'];
+    if (f.includes('thrice') || f.includes('3 times') || f.includes('tds') || f.includes('tid')) return ['09:00', '14:00', '21:00'];
+    if (f.includes('night') || f.includes('bed')) return ['21:00'];
+    if (f.includes('morning')) return ['09:00'];
+    return ['09:00'];
+  };
+
+  const verifyDrug = async (id: string, name: string) => {
+    if (!name) return;
+    
+    updateDrug(id, { rxcuiStatus: 'pending' });
+    
+    try {
+      const res = await fetch(`/api/rxnorm?name=${encodeURIComponent(name)}`);
+      const data = await res.json();
+      
+      if (data.rxcui && data.ingredient) {
+        updateDrug(id, { 
+          rxcui: data.rxcui, 
+          ingredient: data.ingredient,
+          rxcuiStatus: 'success' 
+        });
+        checkInteractions(id, data.ingredient);
+      } else {
+        updateDrug(id, { rxcuiStatus: 'failed' });
+      }
+    } catch (e) {
+      updateDrug(id, { rxcuiStatus: 'failed' });
     }
   };
 
-  const handleRemoveReminder = (time: string) => {
-    setReminders(reminders.filter(t => t !== time));
+  const checkInteractions = async (id: string, newIngredient: string) => {
+    try {
+      if (!user?.uid) return;
+      const { db } = await import('@/lib/firebase');
+      const { collection, getDocs } = await import('firebase/firestore');
+      if (!db) return;
+
+      const querySnapshot = await getDocs(collection(db, 'users', user.uid, 'records'));
+      const existingIngredients: string[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.ingredient) existingIngredients.push(data.ingredient);
+      });
+
+      if (existingIngredients.length === 0) return;
+      const idToken = await user.getIdToken();
+
+      const res = await fetch('/api/check-interaction', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          newDrugIngredient: newIngredient,
+          existingDrugIngredients: existingIngredients
+        })
+      });
+      
+      const data = await res.json();
+      if (data.highestSeverity && data.highestSeverity !== 'None') {
+        updateDrug(id, { interactionResult: data });
+        
+        if (data.highestSeverity === 'Major') {
+          toast.error(`SEVERE INTERACTION for ${newIngredient}`, { duration: 5000 });
+        }
+      }
+    } catch (e) {
+      console.error('Interaction check failed', e);
+    }
+  };
+
+  const updateDrug = (id: string, updates: Partial<ExtractedDrug>) => {
+    setExtractedDrugs(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+  };
+
+  const removeDrug = (id: string) => {
+    setExtractedDrugs(prev => prev.filter(d => d.id !== id));
+  };
+
+  const addDrug = () => {
+    setExtractedDrugs(prev => [...prev, {
+      id: Math.random().toString(36).substring(7),
+      medicationName: '',
+      dosage: '',
+      folder: 'General',
+      reminders: [],
+      rxcui: null,
+      ingredient: null,
+      rxcuiStatus: 'idle',
+      interactionResult: null
+    }]);
   };
 
   const handleFinalSave = async () => {
-    if (!medName) {
-      toast.error('Medication name is required');
+    if (!user || extractedDrugs.length === 0) {
+      toast.error('No drugs to save');
       return;
     }
+    
+    setIsSaving(true);
+    let uploadedImageUrl = '';
+    
+    try {
+      if (imageSrc) {
+        const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+        const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+        
+        if (cloudName && uploadPreset) {
+          const formData = new FormData();
+          formData.append('file', imageSrc);
+          formData.append('upload_preset', uploadPreset);
+          formData.append('folder', `medtrail_prescriptions/${user.uid}`);
 
-    if (user?.uid) {
-      const recordId = Date.now().toString();
-      let uploadedImageUrl = null;
+          const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: 'POST',
+            body: formData
+          });
 
-      try {
-        if (imageSrc) {
-          // Cloudinary Upload
-          const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-          const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-          
-          if (cloudName && uploadPreset) {
-            const formData = new FormData();
-            formData.append('file', imageSrc);
-            formData.append('upload_preset', uploadPreset);
-            formData.append('folder', `medtrail_prescriptions/${user.uid}`);
-
-            const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-              method: 'POST',
-              body: formData
-            });
-
-            if (uploadRes.ok) {
-              const cloudinaryData = await uploadRes.json();
-              uploadedImageUrl = cloudinaryData.secure_url; // The public Cloudinary URL
-            }
+          if (uploadRes.ok) {
+            const cloudinaryData = await uploadRes.json();
+            uploadedImageUrl = cloudinaryData.secure_url;
           }
         }
-      } catch (err) {
-        console.error('Failed to upload image to Cloudinary:', err);
       }
+    } catch (err) {
+      console.error('Cloudinary upload failed:', err);
+    }
 
-      const newRecord = {
-        id: recordId,
-        date: new Date().toISOString(),
-        medicationName: medName,
-        dosage: dosage,
-        folder: folder,
-        reminders: reminders,
-        rxcui: rxcui, // Officially save the NIH Drug ID
-        ingredient: ingredient, // Generic name for DDInter lookup
-        imageUrl: uploadedImageUrl, // Save the secure Cloud Storage URL
-        rawOcrData: ocrData 
-      };
+    try {
+      const { db } = await import('@/lib/firebase');
+      const { doc, setDoc } = await import('firebase/firestore');
+      if (!db) return;
 
-      try {
-        // Save to Firestore ONLY
-        const { db } = await import('@/lib/firebase');
-        const { doc, setDoc } = await import('firebase/firestore');
-        if (db) {
-          await setDoc(doc(db, 'users', user.uid, 'records', recordId), newRecord);
-        }
-        
-        toast.success('Record saved successfully!');
-        setMode('result');
-      } catch (error) {
-        console.error('Failed to save to Firestore:', error);
-        toast.error('Failed to sync to cloud. Please check your connection.');
-        setMode('result');
-      }
+      const dateStr = new Date().toISOString();
+
+      await Promise.all(extractedDrugs.map(async (drug) => {
+        const recordId = `rec_${Date.now()}_${drug.id}`;
+        const newRecord = {
+          id: recordId,
+          date: dateStr,
+          medicationName: drug.medicationName,
+          dosage: drug.dosage,
+          folder: drug.folder,
+          reminders: drug.reminders,
+          rxcui: drug.rxcui,
+          ingredient: drug.ingredient,
+          imageUrl: uploadedImageUrl,
+          rawOcrData: drug
+        };
+        await setDoc(doc(db, 'users', user.uid, 'records', recordId), newRecord);
+      }));
+
+      toast.success(`Saved ${extractedDrugs.length} medications successfully!`);
+      setMode('result');
+    } catch (e) {
+      console.error('Failed to save to Firestore', e);
+      toast.error('Failed to save records');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto shadow-sm">
-      <CardHeader>
-        <CardTitle>Add Medication</CardTitle>
-        <CardDescription>Upload a prescription or medicine strip for automatic extraction.</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Card className="w-full max-w-2xl mx-auto shadow-xl border-0 overflow-hidden">
+      <div className="bg-gradient-to-r from-primary to-blue-500 p-6 text-white text-center">
+        <h2 className="text-2xl font-extrabold flex justify-center items-center gap-2">
+          {mode === 'select' && <><Camera /> Scan Document</>}
+          {mode === 'camera' && <><Camera /> Camera Active</>}
+          {mode === 'preview' && <><Upload /> Confirm Image</>}
+          {mode === 'processing' && <><Loader2 className="animate-spin" /> Analyzing...</>}
+          {mode === 'review' && <><Edit3 /> Review & Confirm</>}
+          {mode === 'result' && <><CheckCircle2 /> Success</>}
+        </h2>
+        <p className="opacity-90 mt-1 font-medium">
+          {mode === 'select' && "Upload a prescription or medicine strip"}
+          {mode === 'review' && "Verify the extracted medications before saving"}
+        </p>
+      </div>
+
+      <CardContent className="p-6">
         {mode === 'select' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Button 
-              variant="outline" 
-              className="h-32 flex flex-col items-center justify-center space-y-2 border-2 border-dashed border-gray-300 hover:border-primary hover:bg-gray-50"
-              onClick={() => setMode('camera')}
-            >
-              <Camera className="h-8 w-8 text-gray-500" />
-              <span className="font-semibold text-gray-700">Open Camera</span>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center py-8">
+            <Button size="lg" className="h-32 flex-1 text-lg flex flex-col gap-3 rounded-2xl" onClick={() => setMode('camera')}>
+              <Camera className="w-8 h-8" /> Use Camera
             </Button>
-            
-            <label className="cursor-pointer">
-              <input 
-                type="file" 
-                accept="image/*" 
-                className="hidden" 
-                onChange={handleFileUpload}
-              />
-              <div className="h-32 flex flex-col items-center justify-center space-y-2 border-2 border-dashed border-gray-300 hover:border-primary hover:bg-gray-50 rounded-md">
-                <Upload className="h-8 w-8 text-gray-500" />
-                <span className="font-semibold text-gray-700">Upload Image</span>
-              </div>
-            </label>
+            <Button size="lg" variant="outline" className="h-32 flex-1 text-lg flex flex-col gap-3 rounded-2xl relative overflow-hidden">
+              <Upload className="w-8 h-8" /> Upload File
+              <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileUpload} />
+            </Button>
           </div>
         )}
 
         {mode === 'camera' && (
-          <div className="space-y-4 flex flex-col items-center">
-            <div className="relative w-full overflow-hidden rounded-lg bg-black flex justify-center">
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                videoConstraints={{ facingMode: "environment" }}
-                className="w-full max-w-md h-auto"
-              />
+          <div className="space-y-4">
+            <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4] md:aspect-video flex items-center justify-center">
+              <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" videoConstraints={{ facingMode: 'environment' }} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 border-2 border-white/20 m-4 rounded-xl pointer-events-none" />
             </div>
-            <div className="flex gap-4 w-full max-w-md">
-              <Button variant="outline" className="flex-1" onClick={handleRetake}>
-                <X className="mr-2 h-4 w-4" /> Cancel
-              </Button>
-              <Button className="flex-1" onClick={capture}>
-                <Camera className="mr-2 h-4 w-4" /> Capture
-              </Button>
+            <div className="flex gap-4">
+              <Button variant="outline" className="flex-1" onClick={handleRetake}>Cancel</Button>
+              <Button className="flex-1 bg-green-600 hover:bg-green-700 font-bold" onClick={capture}>Capture Photo</Button>
             </div>
-            <p className="text-sm text-gray-500 text-center">Ensure the text is clearly visible without glare.</p>
           </div>
         )}
 
         {mode === 'preview' && imageSrc && (
-          <div className="space-y-4 flex flex-col items-center">
-            <div className="relative w-full max-w-md border rounded-lg overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageSrc} alt="Captured preview" className="w-full h-auto object-contain" />
+          <div className="space-y-6">
+            <div className="relative rounded-2xl overflow-hidden border border-gray-200">
+              <img src={imageSrc} alt="Document Preview" className="w-full max-h-[50vh] object-contain bg-gray-50" />
             </div>
-            <div className="flex gap-4 w-full max-w-md">
-              <Button variant="outline" className="flex-1" onClick={handleRetake}>
-                Retake
-              </Button>
-              <Button className="flex-1 bg-primary text-white" onClick={handleProcessImage}>
-                <CheckCircle2 className="mr-2 h-4 w-4" /> Analyze with AI
-              </Button>
+            <div className="flex gap-4">
+              <Button variant="outline" className="flex-1" onClick={handleRetake}>Retake</Button>
+              <Button className="flex-1 font-bold" onClick={handleProcessImage}>Analyze Document</Button>
             </div>
           </div>
         )}
 
         {mode === 'processing' && (
-          <div className="space-y-6 flex flex-col items-center justify-center py-12">
-            <Loader2 className="w-12 h-12 text-primary animate-spin" />
-            <div className="text-center">
-              <h3 className="font-bold text-gray-900">Gemini AI is analyzing the image...</h3>
-              <p className="text-sm text-gray-500">Extracting medication name and dosage.</p>
-            </div>
+          <div className="py-20 flex flex-col items-center justify-center space-y-4">
+            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <h3 className="text-xl font-bold text-gray-800">Reading Medical Data...</h3>
+            <p className="text-gray-500 font-medium">Extracting multiple medications with Gemini AI.</p>
           </div>
         )}
 
         {mode === 'review' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-lg text-gray-800">Extracted Medications ({extractedDrugs.length})</h3>
+              <Button size="sm" variant="outline" onClick={addDrug}><Plus className="w-4 h-4 mr-1"/> Add Drug</Button>
+            </div>
             
-            {interactionResult && (
-              <div className={`border-l-4 p-4 rounded-r-xl shadow-sm ${
-                interactionResult.highestSeverity === 'Major' ? 'bg-red-50 border-red-500' :
-                interactionResult.highestSeverity === 'Moderate' ? 'bg-orange-50 border-orange-500' :
-                'bg-yellow-50 border-yellow-500'
-              }`}>
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <span className="text-2xl">⚠️</span>
+            {extractedDrugs.map((drug, index) => (
+              <div key={drug.id} className="bg-gray-50 border border-gray-200 rounded-xl p-5 relative">
+                <button onClick={() => removeDrug(drug.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors">
+                  <Trash2 className="w-5 h-5" />
+                </button>
+                
+                <div className="flex items-center justify-between mb-4 pr-10">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-primary text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">{index + 1}</span>
+                    {drug.rxcuiStatus === 'pending' && <span className="text-xs text-blue-500 font-medium animate-pulse">Syncing...</span>}
+                    {drug.rxcuiStatus === 'success' && <span className="text-xs text-green-600 font-bold bg-green-100 px-2 py-0.5 rounded-full">✓ RxNorm</span>}
+                    {drug.rxcuiStatus === 'failed' && <span className="text-xs text-orange-500 font-medium">Unverified</span>}
                   </div>
-                  <div className="ml-3">
-                    <h3 className={`text-lg font-bold ${
-                      interactionResult.highestSeverity === 'Major' ? 'text-red-800' :
-                      interactionResult.highestSeverity === 'Moderate' ? 'text-orange-800' :
-                      'text-yellow-800'
-                    }`}>
-                      {interactionResult.highestSeverity} Drug Interaction Detected!
-                    </h3>
-                    <div className="mt-2 text-sm text-gray-700">
-                      <p><strong>{interactionResult.targetDrug.toUpperCase()}</strong> interacts with medications you are already taking:</p>
-                      <ul className="list-disc pl-5 mt-1 space-y-1">
-                        {interactionResult.interactions.map((interaction: any, i: number) => (
-                          <li key={i}>
-                            <strong>{interaction.drug.toUpperCase()}</strong> - Severity: {interaction.severity}
-                          </li>
-                        ))}
-                      </ul>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Medication Name</label>
+                    <input 
+                      type="text" 
+                      value={drug.medicationName}
+                      onChange={(e) => updateDrug(drug.id, { medicationName: e.target.value })}
+                      onBlur={() => verifyDrug(drug.id, drug.medicationName)}
+                      className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary outline-none" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Dosage</label>
+                    <input 
+                      type="text" 
+                      value={drug.dosage}
+                      onChange={(e) => updateDrug(drug.id, { dosage: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary outline-none" 
+                    />
+                  </div>
+                </div>
+
+                {drug.interactionResult && (
+                  <div className={`mb-4 p-3 rounded-lg border ${
+                    drug.interactionResult.highestSeverity === 'Major' ? 'bg-red-50 border-red-500 text-red-800' : 'bg-orange-50 border-orange-500 text-orange-800'
+                  }`}>
+                    <div className="flex items-center gap-2 font-bold mb-1">
+                      <AlertTriangle className="w-4 h-4"/> {drug.interactionResult.highestSeverity} Interaction!
                     </div>
-                    {interactionResult.highestSeverity === 'Major' && (
-                      <div className="mt-4">
-                        <Button 
-                          variant="destructive" 
-                          onClick={async () => {
-                            toast.success('SOS Alert sent to caregiver!');
-                            await fetch('/api/sos', { method: 'POST' });
-                          }}
-                        >
-                          Alert Caregiver Now (SOS)
-                        </Button>
+                    <p className="text-xs">Interacts with: {drug.interactionResult.interactions.map((i:any) => i.drug).join(', ')}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1"><FolderPlus className="w-3 h-3"/> Folder</label>
+                    <select 
+                      value={drug.folder}
+                      onChange={(e) => updateDrug(drug.id, { folder: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg p-2 text-sm outline-none bg-white"
+                    >
+                      <option value="General">General</option>
+                      <option value="Cardiology">Cardiology</option>
+                      <option value="Diabetes">Diabetes</option>
+                      <option value="Short Term">Short Term / Antibiotics</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1"><Clock className="w-3 h-3"/> Add Time</label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="time" 
+                        value={newReminderTime[drug.id] || ''}
+                        onChange={(e) => setNewReminderTime({ ...newReminderTime, [drug.id]: e.target.value })}
+                        className="border border-gray-300 rounded-lg p-2 text-sm outline-none flex-1"
+                      />
+                      <Button size="sm" onClick={() => {
+                        const time = newReminderTime[drug.id];
+                        if (time && !drug.reminders.includes(time)) {
+                          updateDrug(drug.id, { reminders: [...drug.reminders, time].sort() });
+                          setNewReminderTime({ ...newReminderTime, [drug.id]: '' });
+                        }
+                      }}><Plus className="w-4 h-4" /></Button>
+                    </div>
+                    {drug.reminders.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {drug.reminders.map((time, idx) => (
+                          <span key={idx} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-xs font-bold border border-indigo-200">
+                            {time} <button onClick={() => updateDrug(drug.id, { reminders: drug.reminders.filter(t => t !== time) })}><X className="w-3 h-3 hover:text-red-500"/></button>
+                          </span>
+                        ))}
                       </div>
                     )}
                   </div>
                 </div>
               </div>
+            ))}
+
+            {extractedDrugs.length === 0 && (
+              <p className="text-center text-gray-500 py-8">No medications found. Click "Add Drug" to manually input.</p>
             )}
 
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-6">
-              <h3 className="font-bold text-primary flex items-center gap-2 mb-4">
-                <Edit3 className="w-5 h-5" /> Verify & Save Record
-              </h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-semibold text-gray-700">Medication Name</label>
-                    {rxcuiStatus === 'pending' && <span className="text-xs text-blue-500 font-medium animate-pulse">Syncing with NIH...</span>}
-                    {rxcuiStatus === 'success' && <span className="text-xs text-green-600 font-bold bg-green-100 px-2 py-0.5 rounded-full">✓ RxNorm Verified</span>}
-                    {rxcuiStatus === 'failed' && <span className="text-xs text-orange-500 font-medium">Unverified Drug Name</span>}
-                  </div>
-                  <input 
-                    type="text" 
-                    value={medName}
-                    onChange={(e) => setMedName(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-primary focus:border-primary outline-none" 
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Dosage</label>
-                  <input 
-                    type="text" 
-                    value={dosage}
-                    onChange={(e) => setDosage(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-primary outline-none" 
-                  />
-                </div>
-
-                <div className="pt-4 border-t border-gray-200">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
-                    <FolderPlus className="w-4 h-4 text-gray-500" /> Save to Folder
-                  </label>
-                  <select 
-                    value={folder}
-                    onChange={(e) => setFolder(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 outline-none bg-white font-medium"
-                  >
-                    <option value="General">General / Uncategorized</option>
-                    <option value="Cardiology">Cardiology (Heart)</option>
-                    <option value="Diabetes">Diabetes</option>
-                    <option value="Short Term">Short Term / Antibiotics</option>
-                    <option value="Vitamins">Vitamins & Supplements</option>
-                  </select>
-                </div>
-
-                <div className="pt-4 border-t border-gray-200">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-gray-500" /> Set Reminders
-                  </label>
-                  <div className="flex gap-2 mb-3">
-                    <input 
-                      type="time" 
-                      value={newReminderTime}
-                      onChange={(e) => setNewReminderTime(e.target.value)}
-                      className="border border-gray-300 rounded-lg p-2 outline-none flex-1"
-                    />
-                    <Button onClick={handleAddReminder} variant="secondary" className="px-3">
-                      <Plus className="w-4 h-4" /> Add
-                    </Button>
-                  </div>
-                  
-                  {reminders.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {reminders.map((time, idx) => (
-                        <div key={idx} className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-full text-sm font-bold">
-                          {time}
-                          <button onClick={() => handleRemoveReminder(time)} className="hover:text-red-500 transition-colors">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 italic">No reminders set.</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <Button variant="outline" className="flex-1" onClick={handleRetake}>
-                Discard
-              </Button>
-              <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold" onClick={handleFinalSave}>
-                Save Record
+            <div className="flex gap-4 pt-4 border-t border-gray-200">
+              <Button variant="outline" className="flex-1" onClick={handleRetake}>Cancel</Button>
+              <Button className="flex-1 bg-green-600 hover:bg-green-700 font-bold" onClick={handleFinalSave} disabled={isSaving || extractedDrugs.length === 0}>
+                {isSaving ? <Loader2 className="w-5 h-5 animate-spin"/> : 'Confirm & Save All'}
               </Button>
             </div>
           </div>
@@ -487,17 +449,12 @@ export function CaptureModule() {
           <div className="space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center">
               <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
-              <h3 className="font-bold text-green-900 text-2xl mb-2">Record Saved!</h3>
-              <p className="text-green-800 text-sm font-medium">It has been added to the {folder} folder with {reminders.length} reminder(s).</p>
+              <h3 className="font-bold text-green-900 text-2xl mb-2">Successfully Saved!</h3>
+              <p className="text-green-800 text-sm font-medium">Added {extractedDrugs.length} medication(s) to your medical timeline.</p>
             </div>
-
             <div className="flex gap-4 pt-4 border-t border-gray-100">
-              <Button variant="outline" className="flex-1 font-bold" onClick={handleRetake}>
-                Scan Another
-              </Button>
-              <Button className="flex-1 font-bold" onClick={() => router.push('/dashboard')}>
-                Return to Dashboard
-              </Button>
+              <Button variant="outline" className="flex-1 font-bold" onClick={handleRetake}>Scan Another</Button>
+              <Button className="flex-1 font-bold" onClick={() => router.push('/dashboard')}>Dashboard</Button>
             </div>
           </div>
         )}

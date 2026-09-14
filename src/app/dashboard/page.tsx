@@ -555,21 +555,113 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Interactions Tab */}
+              {/* Interactions Tab */}
               {activeTab === 'interactions' && (
                 <div className="pt-4">
                   <ManualChecker />
                 </div>
               )}
 
-              {/* Settings Tab */}
-              {activeTab === 'settings' && (
-                <div className="bg-white rounded-3xl p-10 shadow-sm border border-gray-100 text-center py-20">
-                  <Settings className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Settings</h2>
-                  <p className="text-gray-500">Settings panel is coming in the next update.</p>
+              {/* Doctor Search Tab */}
+              {activeTab === 'search' && (
+                <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 max-w-3xl mx-auto text-center py-20">
+                  <Users className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Patient Directory Search</h2>
+                  <p className="text-gray-500 mb-6">Search for patients by email, phone, or MedTrail ID to view their clinical timeline and interaction warnings.</p>
+                  <div className="flex max-w-md mx-auto gap-2">
+                    <input type="text" placeholder="Patient Email or ID" className="flex-1 border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-primary" />
+                    <Button className="px-6 font-bold">Search</Button>
+                  </div>
                 </div>
               )}
+
+              {/* Caregiver Patients Tab */}
+              {activeTab === 'patients' && (
+                <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 max-w-3xl mx-auto text-center py-20">
+                  <HeartPulse className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">My Patients</h2>
+                  <p className="text-gray-500">You are monitoring 0 active patients. Patients must add your email to their Emergency Contacts in settings.</p>
+                </div>
+              )}
+
+              {/* Settings Tab */}
+            {activeTab === 'settings' && (
+              <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 max-w-3xl mx-auto">
+                <div className="flex items-center gap-3 mb-6">
+                  <Settings className="w-8 h-8 text-primary" />
+                  <h2 className="text-2xl font-bold text-gray-900">Account Settings</h2>
+                </div>
+                
+                <form 
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!user) return;
+                    
+                    const form = e.target as HTMLFormElement;
+                    const newName = (form.elements.namedItem('displayName') as HTMLInputElement).value;
+                    const newPhone = (form.elements.namedItem('phone') as HTMLInputElement).value;
+                    const newEmergency = (form.elements.namedItem('emergency') as HTMLInputElement).value;
+                    
+                    try {
+                      const { db } = await import('@/lib/firebase');
+                      const { doc, updateDoc } = await import('firebase/firestore');
+                      if (db) {
+                        await updateDoc(doc(db, 'users', user.uid), {
+                          displayName: newName,
+                          phone: newPhone,
+                          emergencyContactEmail: newEmergency
+                        });
+                        toast.success('Settings updated successfully!');
+                      }
+                    } catch (err) {
+                      toast.error('Failed to update settings');
+                    }
+                  }}
+                  className="space-y-6"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+                      <input 
+                        name="displayName"
+                        type="text" 
+                        defaultValue={profile?.displayName || profile?.name || ''}
+                        className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary outline-none" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+                      <input 
+                        name="phone"
+                        type="tel" 
+                        defaultValue={profile?.phone || ''}
+                        className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary outline-none" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100">
+                    <label className="block text-sm font-semibold text-red-600 mb-1 flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4"/> Emergency Contact (Caregiver Email)
+                    </label>
+                    <p className="text-xs text-gray-500 mb-2">This person will receive SOS alerts if severe drug interactions are detected.</p>
+                    <input 
+                      name="emergency"
+                      type="email" 
+                      defaultValue={profile?.caregiverEmail || profile?.emergencyContactEmail || ''}
+                      placeholder="doctor@hospital.com or family@email.com"
+                      className="w-full border border-red-200 rounded-xl p-3 focus:ring-2 focus:ring-red-500 outline-none bg-red-50/30" 
+                    />
+                  </div>
+
+                  <div className="pt-6">
+                    <Button type="submit" className="w-full sm:w-auto font-bold px-8 bg-primary hover:bg-primary/90">
+                      Save Changes
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            )}
 
             </motion.div>
           </AnimatePresence>
