@@ -136,7 +136,7 @@ export default function OnboardingPage() {
                       </div>
                         <div>
                           <Label>Emergency Contact Number</Label>
-                          <Input name="emergencyContact" type="tel" pattern="^\+?[0-9]{10,15}$" title="Enter a valid 10-15 digit phone number (no spaces or dashes)" required placeholder="e.g. +919876543210" onChange={handleInputChange} className="mt-1" />
+                          <Input name="emergencyContact" type="tel" pattern="^[0-9]{10}$" title="Enter exactly 10 digits" required placeholder="e.g. 9876543210" onChange={handleInputChange} className="mt-1" />
                         </div>
                         <div className="bg-primary/5 p-4 rounded-xl border border-primary/20">
                           <Label className="text-primary font-bold">Caregiver's Email Address</Label>
@@ -150,7 +150,7 @@ export default function OnboardingPage() {
                       <>
                         <div>
                           <Label>Your Phone Number</Label>
-                          <Input name="phone" type="tel" pattern="^\+?[0-9]{10,15}$" title="Enter a valid 10-15 digit phone number (no spaces or dashes)" required placeholder="e.g. +919876543210" onChange={handleInputChange} className="mt-1" />
+                          <Input name="phone" type="tel" pattern="^[0-9]{10}$" title="Enter exactly 10 digits" required placeholder="e.g. 9876543210" onChange={handleInputChange} className="mt-1" />
                         </div>
                       <div>
                         <Label>Primary Relationship to Patient</Label>

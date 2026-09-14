@@ -678,8 +678,8 @@ export default function DashboardPage() {
                       <input 
                         name="phone"
                         type="tel" 
-                        pattern="^\+?[0-9]{10,15}$"
-                        title="Enter a valid 10-15 digit phone number (no spaces or dashes)" placeholder="e.g. +919876543210"
+                        pattern="^[0-9]{10}$"
+                        title="Enter exactly 10 digits" placeholder="e.g. 9876543210"
                         defaultValue={profile?.phone || ''}
                         className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary outline-none" 
                       />
