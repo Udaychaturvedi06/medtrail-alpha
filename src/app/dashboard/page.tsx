@@ -372,6 +372,19 @@ export default function DashboardPage() {
 
         {/* Scrollable Dashboard Content */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8 relative z-10">
+          <div className="max-w-6xl mx-auto mb-6">
+            {viewingPatient && (
+              <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-r-xl flex justify-between items-center shadow-sm">
+                <div>
+                  <p className="font-bold">Viewing Patient Record: {viewingPatient.name || viewingPatient.displayName}</p>
+                  <p className="text-sm">({viewingPatient.email || viewingPatient.phone})</p>
+                </div>
+                <Button variant="outline" onClick={() => { setViewingPatient(null); setActiveTab('search'); }} className="border-yellow-500 text-yellow-700 hover:bg-yellow-50 font-bold">
+                  Close Patient View
+                </Button>
+              </div>
+            )}
+          </div>
           <AnimatePresence mode="wait">
             <motion.div 
               key={role}
@@ -608,52 +621,194 @@ export default function DashboardPage() {
               )}
 
               {/* Doctor Search Tab */}
-                {activeTab === 'search' && (
-                  <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 max-w-3xl mx-auto text-center py-20">
-                    <Users className="w-16 h-16 text-blue-500 mx-auto mb-4" />
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Patient Directory Search</h2>
-                    <p className="text-gray-500 mb-6">Search for patients by email or phone to view their clinical timeline.</p>
-                    <form 
-                      className="flex max-w-md mx-auto gap-2"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const input = e.target.elements.namedItem('searchQuery');
-                        const queryVal = input.value.trim();
-                        if (queryVal.length < 3) return toast.error('Query must be at least 3 chars');
-                        
-                        const searchFirebase = async () => {
-                          const loadingToast = toast.loading('Searching directory...');
-                          try {
-                            const { db } = await import('@/lib/firebase');
-                            const { collection, query, where, getDocs } = await import('firebase/firestore');
-                            if (!db) return;
-                            let q = query(collection(db, 'users'), where('email', '==', queryVal));
-                            let snap = await getDocs(q);
-                            if (snap.empty) {
-                              q = query(collection(db, 'users'), where('phone', '==', queryVal));
-                              snap = await getDocs(q);
-                            }
-                            if (!snap.empty) {
-                              const foundDoc = snap.docs[0];
-                              setViewingPatient({ uid: foundDoc.id, ...foundDoc.data() });
-                              setActiveTab('dashboard');
-                              toast.success('Patient found!', { id: loadingToast });
-                            } else {
-                              toast.error('Patient not found.', { id: loadingToast });
-                            }
-                          } catch(err) {
-                            toast.error('Search failed', { id: loadingToast });
+              {activeTab === 'search' && (
+                <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 max-w-3xl mx-auto text-center py-20">
+                  <Users className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Patient Directory Search</h2>
+                  <p className="text-gray-500 mb-6">Search for patients by email, phone, or MedTrail ID to view their clinical timeline and interaction warnings.</p>
+                  <form 
+                    className="flex max-w-md mx-auto gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const input = (e.target as HTMLFormElement).elements.namedItem('searchQuery') as HTMLInputElement;
+                      const queryText = input.value.trim().toLowerCase();
+                      if (queryText.length < 3) {
+                        toast.error('Search query must be at least 3 characters long.');
+                        return;
+                      }
+                      
+                      const searchFirebase = async () => {
+                        const loadingToast = toast.loading('Searching patient directory...');
+                        try {
+                          const { db } = await import('@/lib/firebase');
+                          const { collection, query, where, getDocs } = await import('firebase/firestore');
+                          if (!db) return;
+                          
+                          let q = query(collection(db, 'users'), where('email', '==', queryText));
+                          let snap = await getDocs(q);
+                          
+                          if (snap.empty) {
+                            q = query(collection(db, 'users'), where('phone', '==', queryText));
+                            snap = await getDocs(q);
                           }
-                        };
-                        searchFirebase();
-                      }}
-                    >
-                      <input name="searchQuery" type="text" placeholder="Patient Email or Phone" className="flex-1 border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-primary" />
-                      <Button type="submit" className="px-6 font-bold">Search</Button>
-                    </form>
+                          
+                          if (!snap.empty) {
+                            const foundDoc = snap.docs[0];
+                            setViewingPatient({ uid: foundDoc.id, ...foundDoc.data() });
+                            setActiveTab('dashboard');
+                            toast.success('Patient found!', { id: loadingToast });
+                          } else {
+                            toast.error('Patient not found.', { id: loadingToast });
+                          }
+                        } catch(err) {
+                          toast.error('Search failed.', { id: loadingToast });
+                        }
+                      };
+                      searchFirebase();
+                    }}
+                  >
+                    <input name="searchQuery" type="text" placeholder="Patient Email or ID" className="flex-1 border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-primary" />
+                    <Button type="submit" className="px-6 font-bold">Search</Button>
+                  </form>
+                </div>
+              )}
+
+              {/* Caregiver Patients Tab */}
+              {activeTab === 'patients' && (
+                <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 max-w-3xl mx-auto py-10">
+                  <div className="flex items-center gap-3 mb-6 justify-center">
+                    <HeartPulse className="w-10 h-10 text-red-500" />
+                    <h2 className="text-2xl font-bold text-gray-900">My Patients</h2>
                   </div>
-                )}
-              </AnimatePresence>
+                  {caregiverPatients.length === 0 ? (
+                    <div className="text-center">
+                      <p className="text-gray-500">You are monitoring 0 active patients.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {caregiverPatients.map(p => (
+                        <div key={p.uid} className="flex justify-between items-center p-4 border rounded-xl hover:bg-gray-50 transition">
+                          <div className="text-left">
+                            <p className="font-bold text-lg text-gray-800">{p.name || p.displayName || 'Unknown Patient'}</p>
+                            <p className="text-sm text-gray-500">{p.email}</p>
+                          </div>
+                          <Button onClick={() => { setViewingPatient(p); setActiveTab('dashboard'); }} className="bg-primary hover:bg-blue-700">View Timeline</Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Settings Tab */}
+            {activeTab === 'settings' && (
+              <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 max-w-3xl mx-auto">
+                <div className="flex items-center gap-3 mb-6">
+                  <Settings className="w-8 h-8 text-primary" />
+                  <h2 className="text-2xl font-bold text-gray-900">Account Settings</h2>
+                </div>
+                
+                <form 
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!user) return;
+                    
+                    const form = e.target as HTMLFormElement;
+                    const newName = (form.elements.namedItem('displayName') as HTMLInputElement).value;
+                    const newPhone = (form.elements.namedItem('phone') as HTMLInputElement).value;
+                    const newEmergency = (form.elements.namedItem('emergency') as HTMLInputElement).value;
+                    const bloodGroupInput = form.elements.namedItem('bloodGroup') as HTMLSelectElement | null;
+                    const newBloodGroup = bloodGroupInput ? bloodGroupInput.value : undefined;
+                    
+                    try {
+                      const { db } = await import('@/lib/firebase');
+                      const { doc, updateDoc } = await import('firebase/firestore');
+                      if (db) {
+                        const updateData: any = {
+                          displayName: newName,
+                          phone: newPhone,
+                          emergencyContactEmail: newEmergency
+                        };
+                        if (newBloodGroup !== undefined) {
+                          updateData.bloodGroup = newBloodGroup;
+                        }
+                        await updateDoc(doc(db, 'users', user.uid), updateData);
+                        toast.success('Settings updated successfully!');
+                      }
+                    } catch (err) {
+                      toast.error('Failed to update settings');
+                    }
+                  }}
+                  className="space-y-6"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+                      <input 
+                        name="displayName"
+                        type="text" 
+                        defaultValue={profile?.displayName || profile?.name || ''}
+                        className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary outline-none" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+                      <input 
+                        name="phone"
+                        type="tel" 
+                        pattern="^[0-9]{10}$"
+                        title="Enter exactly 10 digits" placeholder="e.g. 9876543210"
+                        defaultValue={profile?.phone || ''}
+                        className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary outline-none" 
+                      />
+                    </div>
+                    {role === 'patient' && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Blood Group</label>
+                        <select 
+                          name="bloodGroup" 
+                          defaultValue={profile?.bloodGroup || ''}
+                          className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary outline-none bg-white"
+                        >
+                          <option value="">Select Blood Group</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100">
+                    <label className="block text-sm font-semibold text-red-600 mb-1 flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4"/> Emergency Contact (Caregiver Email)
+                    </label>
+                    <p className="text-xs text-gray-500 mb-2">This person will receive SOS alerts if severe drug interactions are detected.</p>
+                    <input 
+                      name="emergency"
+                      type="email" 
+                      defaultValue={profile?.caregiverEmail || profile?.emergencyContactEmail || ''}
+                      placeholder="doctor@hospital.com or family@email.com"
+                      className="w-full border border-red-200 rounded-xl p-3 focus:ring-2 focus:ring-red-500 outline-none bg-red-50/30" 
+                    />
+                  </div>
+
+                  <div className="pt-6">
+                    <Button type="submit" className="w-full sm:w-auto font-bold px-8 bg-primary hover:bg-primary/90">
+                      Save Changes
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
 
