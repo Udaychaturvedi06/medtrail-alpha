@@ -24,16 +24,24 @@ export async function POST(request: Request) {
     }
     rateLimit.set(ip, userRate);
     
-    // Parse the body
-    let to = 'whatsapp:+917999069845'; // Hardcoded safe fallback
+    // ---------------------------------------------------------
+    // TWILIO FREE TIER OVERRIDE
+    // Because this is a Twilio Trial/Sandbox, messages can ONLY 
+    // be sent to the verified number provided by the user.
+    // ---------------------------------------------------------
+    let to = 'whatsapp:+917999069845'; 
+    
+    /* 
+    // TODO (Production): Uncomment this block when Twilio account is upgraded
+    // to dynamically pull the Caregiver's number from the request payload.
     try {
       const bodyData = await request.json();
       if (bodyData.emergencyPhone) {
-        // Twilio requires E.164. Our UI validates it, but we prepend whatsapp:
         const cleanPhone = bodyData.emergencyPhone.replace(/[^0-9+]/g, '');
         if (cleanPhone) to = `whatsapp:${cleanPhone}`;
       }
     } catch(e) {}
+    */
 
     // 2. TWILIO LOGIC
     const TWILIO_ACCOUNT_SID = 'AC2b580cfbf6bb05276372bb7ae94de080';
