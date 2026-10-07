@@ -23,14 +23,23 @@ export async function POST(request: Request) {
       }
     }
     rateLimit.set(ip, userRate);
+    
+    // Parse the body
+    let to = 'whatsapp:+917999069845'; // Hardcoded safe fallback
+    try {
+      const bodyData = await request.json();
+      if (bodyData.emergencyPhone) {
+        // Twilio requires E.164. Our UI validates it, but we prepend whatsapp:
+        const cleanPhone = bodyData.emergencyPhone.replace(/[^0-9+]/g, '');
+        if (cleanPhone) to = `whatsapp:${cleanPhone}`;
+      }
+    } catch(e) {}
 
     // 2. TWILIO LOGIC
     const TWILIO_ACCOUNT_SID = 'AC2b580cfbf6bb05276372bb7ae94de080';
     const TWILIO_AUTH_TOKEN = 'e28def86d60a3e3261c6f7ce3b582fcc';
     
-    // In production, the "To" number would come from the Caregiver's profile in the database.
-    // For this demo, we are using the hardcoded verified number provided by the user.
-    const to = 'whatsapp:+917999069845';
+    // Note: If using a Twilio Trial account, 'to' MUST be a verified number in your console.
     const from = 'whatsapp:+17372508034';
     const contentSid = 'HXfe5ab5f00277942d4d4200328b4d403c';
 

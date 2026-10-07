@@ -22,6 +22,10 @@ export default function DashboardPage() {
   // Local records
   const [records, setRecords] = useState<any[]>([]);
   
+  // Viewing Patient (for Doctor/Caregiver tab viewing)
+  const [viewingPatient, setViewingPatient] = useState<any>(null);
+  const [caregiverPatients, setCaregiverPatients] = useState<any[]>([]);
+  
   // Caregiver Notifications
   const [notifications, setNotifications] = useState<any[]>([]);
   
@@ -68,7 +72,11 @@ export default function DashboardPage() {
       const sendSOS = async () => {
         const loadingToast = toast.loading('Sending emergency location to Caregiver via WhatsApp...');
         try {
-          const res = await fetch('/api/sos', { method: 'POST' });
+          const res = await fetch('/api/sos', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emergencyPhone: profile?.emergencyContact || profile?.phone })
+          });
           const data = await res.json();
           if (res.ok && data.success) {
             toast.success('Emergency! WhatsApp alert sent successfully!', { id: loadingToast });
@@ -100,20 +108,22 @@ export default function DashboardPage() {
     
     let unsubRecords: any = null;
     let unsubNotifications: any = null;
+    let unsubCaregiverPatients: any = null;
 
     import('@/lib/firebase').then(({ db }) => {
       import('firebase/firestore').then(({ collection, query, where, onSnapshot }) => {
         if (!db) return;
 
-        // 1. Fetch Patient Records
-        const recordsQuery = query(collection(db, 'users', user.uid, 'records'));
+        // 1. Fetch Patient Records (Dynamic based on viewingPatient)
+        const targetUid = viewingPatient ? viewingPatient.uid : user.uid;
+        const recordsQuery = query(collection(db, 'users', targetUid, 'records'));
         unsubRecords = onSnapshot(recordsQuery, (snapshot) => {
           const freshRecords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           freshRecords.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
           setRecords(freshRecords);
         });
 
-        // 2. Fetch Caregiver Notifications
+        // 2. Fetch Caregiver Notifications & My Patients
         if (role === 'caregiver' && user.email) {
           const notifQuery = query(
             collection(db, 'notifications'), 
@@ -123,6 +133,15 @@ export default function DashboardPage() {
             const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             notifs.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
             setNotifications(notifs);
+          });
+          
+          const patientsQuery = query(
+            collection(db, 'users'),
+            where('emergencyContactEmail', '==', user.email)
+          );
+          unsubCaregiverPatients = onSnapshot(patientsQuery, (snapshot) => {
+            const patients = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+            setCaregiverPatients(patients);
           });
         }
       });
@@ -160,8 +179,9 @@ export default function DashboardPage() {
     return () => {
       if (unsubRecords) unsubRecords();
       if (unsubNotifications) unsubNotifications();
+      if (unsubCaregiverPatients) unsubCaregiverPatients();
     };
-  }, [user, role]);
+  }, [user, role, viewingPatient]);
 
   if (loading || !user) {
     return (
