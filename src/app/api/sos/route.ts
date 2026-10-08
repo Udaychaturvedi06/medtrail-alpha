@@ -44,8 +44,13 @@ export async function POST(request: Request) {
     */
 
     // 2. TWILIO LOGIC
-    const TWILIO_ACCOUNT_SID = 'AC2b580cfbf6bb05276372bb7ae94de080';
-    const TWILIO_AUTH_TOKEN = 'e28def86d60a3e3261c6f7ce3b582fcc';
+    const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+    const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+    
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
+      console.error('Twilio environment variables are missing.');
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+    }
     
     // Note: If using a Twilio Trial account, 'to' MUST be a verified number in your console.
     const from = 'whatsapp:+17372508034';
