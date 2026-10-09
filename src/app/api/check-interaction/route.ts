@@ -30,12 +30,29 @@ export async function POST(request: Request) {
 
     const interactions: Array<{ drug: string; severity: string }> = [];
 
-    const targetDrug = newDrugIngredient.toLowerCase();
+    // Common aliases to map brand/common names to DDInter strict generic keys
+    const ALIASES: Record<string, string> = {
+      'aspirin': 'acetylsalicylic acid',
+      'paracetamol': 'acetaminophen',
+      'tylenol': 'acetaminophen',
+      'advil': 'ibuprofen',
+      'motrin': 'ibuprofen',
+      'viagra': 'sildenafil',
+      'lipitor': 'atorvastatin',
+      'coumadin': 'warfarin'
+    };
+
+    const resolveDrugName = (name: string) => {
+      let cleanName = name.toLowerCase().trim();
+      return ALIASES[cleanName] || cleanName;
+    };
+
+    const targetDrug = resolveDrugName(newDrugIngredient);
 
     // Cross-reference against all existing drugs
     for (const existing of existingDrugIngredients) {
       if (!existing) continue;
-      const existingDrug = existing.toLowerCase();
+      const existingDrug = resolveDrugName(existing);
 
       // Check if interaction exists in the dataset
       if (ddinterDict[targetDrug] && ddinterDict[targetDrug][existingDrug]) {

@@ -150,9 +150,11 @@ export function CaptureModule() {
         checkInteractions(id, data.ingredient);
       } else {
         updateDrug(id, { rxcuiStatus: 'failed' });
+        checkInteractions(id, name);
       }
     } catch (e) {
       updateDrug(id, { rxcuiStatus: 'failed' });
+      checkInteractions(id, name);
     }
   };
 
@@ -168,6 +170,7 @@ export function CaptureModule() {
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         if (data.ingredient) existingIngredients.push(data.ingredient);
+        else if (data.medicationName) existingIngredients.push(data.medicationName);
       });
 
       if (existingIngredients.length === 0) return;
