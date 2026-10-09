@@ -27,11 +27,9 @@ export function ManualChecker() {
       const resB = await fetch(`/api/rxnorm?name=${encodeURIComponent(drugB)}`);
       const dataB = await resB.json();
 
-      if (!dataA.ingredient || !dataB.ingredient) {
-        setResult({ error: 'Could not find one or both drugs in the official medical database.' });
-        setIsChecking(false);
-        return;
-      }
+      // Graceful fallback
+      const finalDrugA = dataA.ingredient || drugA;
+      const finalDrugB = dataB.ingredient || drugB;
 
       // 3. Check Interaction Engine
       const idToken = await user.getIdToken();
@@ -42,8 +40,8 @@ export function ManualChecker() {
           'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({
-          newDrugIngredient: dataA.ingredient,
-          existingDrugIngredients: [dataB.ingredient]
+          newDrugIngredient: finalDrugA,
+          existingDrugIngredients: [finalDrugB]
         })
       });
       
