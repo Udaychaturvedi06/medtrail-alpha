@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     }
     
     // Note: If using a Twilio Trial account, 'to' MUST be a verified number in your console.
-    const from = 'whatsapp:+17372508034';
+    const from = 'whatsapp:+17372212163';
     const contentSid = 'HXfe5ab5f00277942d4d4200328b4d403c';
 
     const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
