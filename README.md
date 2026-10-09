@@ -1,68 +1,66 @@
-# 🏥 MedTrail: Intelligent Medical Timeline & Safety Platform
+# MedTrail
 
-Welcome to the **MedTrail** repository. MedTrail is an advanced, AI-powered health management platform that unifies patient medical records, provides an expert-level OCR prescription scanner, and actively monitors for dangerous drug-drug interactions.
+MedTrail is a comprehensive healthcare management and safety platform designed to bridge the communication gap between patients, caregivers, and medical professionals. By digitizing medical records and introducing proactive drug interaction checks, MedTrail aims to reduce medical errors and make longitudinal health data accessible.
 
----
+## Project Overview
 
-## 🏗️ System Architecture
+In traditional healthcare settings, patients often struggle to maintain a consolidated medical history, leading to fragmented care and an increased risk of adverse drug events (ADEs). MedTrail addresses this by providing a unified digital timeline for medical records, powered by optical character recognition (OCR) for easy prescription uploads, and an automated drug-drug interaction (DDInter) safety engine.
 
-While MedTrail is built as a highly-efficient **Next.js Full-Stack Monolith** (allowing for zero-latency communication and easy deployment), the codebase is strictly organized into distinct, logical micro-modules.
+This project was developed as a comprehensive solution for modern healthcare tracking, focusing on data integrity, user accessibility, and proactive safety monitoring.
 
-If you are navigating the repository, please refer to this architectural map:
+## Key Features
 
-### 🖥️ 1. Frontend (UI / Portals)
-The client-facing application is a responsive, single-page experience supporting distinct personas (Patients, Caregivers, Doctors).
-*   **Location:** \src/app/\, \src/components/\, \src/features/\
-*   **Tech:** React, Next.js 14, Tailwind CSS, Framer Motion
-*   **Key Files:** \DashboardPage.tsx\, \CaptureModule.tsx\
+- **Multi-Role Portals:** Dedicated interfaces for Patients (to manage their timeline), Caregivers (to monitor dependents), and Doctors (to review clinical history).
+- **Automated Prescription Digitization:** Users can upload images of handwritten prescriptions or medicine strips. The system extracts medication names, dosages, and durations, standardizing the data for the timeline.
+- **Drug-Drug Interaction (DDInter) Engine:** Cross-references newly uploaded medications against a patient's existing active prescriptions to flag potential moderate or severe interactions (e.g., Warfarin and Aspirin).
+- **Emergency SOS System:** Allows patients to instantly alert their designated caregiver via WhatsApp in case of a medical emergency.
+- **Government Sync Integration:** Prepared infrastructure for Ayushman Bharat Health Account (ABHA) linking to synchronize lab reports from ABDM-compliant hospitals.
 
-### 🧠 2. OCR (Optical Character Recognition Engine)
-Our "Expert Pharmacist" AI module. It securely processes prescription images, standardizes medication names, and extracts dosages, duration, and clinical advice into strict JSON format.
-*   **Location:** \src/app/api/ocr/route.ts\
-*   **Tech:** Gemini 2.5 Flash Vision Model
-*   **Capabilities:** Multi-drug extraction, handwriting analysis, intelligent fallback storage.
+## Technical Architecture
 
-### 💊 3. DD-Inter (Drug-Drug Interaction Engine)
-The core safety mechanism of MedTrail. It cross-references patient prescriptions in real-time to detect contraindications and severe interaction warnings.
-*   **Location:** \src/app/api/check-interaction/route.ts\ & \src/app/api/rxnorm/route.ts\
-*   **Capabilities:** Automated interaction flagging, caregiver SOS alerts.
+MedTrail is built on a modern, serverless technology stack to ensure scalability and responsiveness.
 
-### ⚙️ 4. Backend (Core Services & Security)
-The serverless infrastructure managing data persistence, user authentication, and strict medical data validation.
-*   **Location:** \src/lib/firebase.ts\, \src/schemas/\
-*   **Tech:** Firebase (Firestore / Auth), Next.js Serverless Functions
-*   **Security:** DPDP Act (2023) compliant consent flows, strict E.164 phone number validation, secure Base64 image fallback protocols.
+- **Frontend:** Next.js 14 (App Router), React, Tailwind CSS, Framer Motion
+- **Backend & Database:** Firebase Authentication, Firestore (NoSQL), Next.js API Routes
+- **Data Processing:** Integration with the NIH RxNorm API for strict pharmaceutical standardization and Google Gemini Vision for OCR data extraction.
+- **Notifications:** Twilio API for automated WhatsApp emergency routing.
 
----
+## Repository Structure
 
-## ✨ Key Features
+- `src/app/`: Core Next.js routing, including dashboards, profile management, and serverless API endpoints.
+- `src/components/`: Reusable UI elements and the Manual Interaction Checker.
+- `src/features/`: Feature-specific modules, such as the `CaptureModule` for handling prescription uploads and OCR processing.
+- `src/data/`: Local datasets, including the compiled dictionary for the interaction engine.
+- `src/lib/`: Firebase configuration and utility functions.
 
-*   **Multi-Persona Dashboards:** Tailored views for Patients (Timeline), Caregivers (Monitoring), and Doctors (Clinical Review).
-*   **Instant Prescription Digitization:** Upload a photo, and the AI extracts and organizes the data automatically.
-*   **Strict Data Integrity:** Forms are locked down with strict regex (e.g., exact 10-digit phone numbers, dropdowns for blood types) to prevent vague or corrupt medical data.
-*   **Emergency SOS:** One-click SOS alerts triggered via Twilio/WhatsApp for caregivers when critical interactions occur.
+## Setup and Installation
 
----
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/Udaychaturvedi06/medtrail-alpha.git
+   cd medtrail
+   ```
 
-## 🚀 Getting Started
-
-To run the MedTrail platform locally:
-
-1. **Install Dependencies:**
-   \\\ash
+2. **Install dependencies:**
+   ```bash
    npm install
-   \\\
+   ```
 
-2. **Set Environment Variables:**
-   Ensure you have a \.env.local\ file with your Firebase, Gemini, and Cloudinary API keys.
+3. **Environment Configuration:**
+   Create a `.env.local` file in the root directory and configure the necessary credentials for Firebase, Gemini, and Twilio.
 
-3. **Run the Development Server:**
-   \\\ash
+4. **Run the development server:**
+   ```bash
    npm run dev
-   \\\
-   
-4. **Access the Application:**
-   Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+   ```
+   Navigate to `http://localhost:3000` in your browser to view the application.
 
----
-*Maintained by UdayCreates / PoisonWorld*
+## Contributors
+
+Developed by the MedTrail Team:
+- **Uday Chaturvedi**
+- **Rishi**
+- **Shravani**
+- **Abhi**
+
+*VIT Bhopal University*

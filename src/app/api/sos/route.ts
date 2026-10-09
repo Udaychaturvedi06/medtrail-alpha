@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
     }
     
-    // Note: If using a Twilio Trial account, 'to' MUST be a verified number in your console.
+    
     const from = 'whatsapp:+17372212163';
     const contentSid = 'HXfe5ab5f00277942d4d4200328b4d403c';
 

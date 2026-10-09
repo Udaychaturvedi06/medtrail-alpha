@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const prompt = `
-      You are an expert pharmacist and medical AI. 
+      You are an expert pharmacist and medical assistant. 
       Analyze this image (which may be a doctor's handwritten prescription OR a medicine strip).
       
       Instructions:

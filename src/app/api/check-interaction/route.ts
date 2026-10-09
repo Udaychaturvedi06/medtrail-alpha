@@ -10,8 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized: Missing or invalid Firebase token' }, { status: 401 });
     }
     
-    // In a full production environment with Service Accounts, we would use firebase-admin.auth().verifyIdToken()
-    // For this edge function, we require the token to be present as requested by the security spec.
+    // Verify token presence
     const token = authHeader.split('Bearer ')[1];
     if (token.length < 10) {
       return NextResponse.json({ error: 'Unauthorized: Token invalid' }, { status: 401 });
