@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function: User must be signed in
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      // Authenticated users can read profiles (needed for Doctor Search & Caregiver Patient lookup)
+      allow read: if isAuthenticated();
+      
+      // Users can write/update their own profile
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+
+      // Patient Records Subcollection
+      match /records/{recordId} {
+        // Authenticated users (Patients, Caregivers, Doctors) can view records
+        allow read: if isAuthenticated();
+        
+        // Patients can create, update, or delete their own records
+        allow write, delete: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
+
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Audit Logs Collection (DPDP compliance logging)
+    match /audit_logs/{logId} {
+      allow read, create: if isAuthenticated();
+    }
+  }
+}
