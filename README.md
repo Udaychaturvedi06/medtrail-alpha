@@ -47,7 +47,11 @@ MedTrail is built on a modern, serverless technology stack to ensure scalability
    ```
 
 3. **Environment Configuration:**
-   Create a `.env.local` file in the root directory and configure the necessary credentials for Firebase, Gemini, and Twilio.
+   Copy the sample environment file and configure your credentials:
+   ```bash
+   cp .env.example .env.local
+   ```
+   Provide your Firebase configuration, Gemini API key, and Twilio credentials.
 
 4. **Run the development server:**
    ```bash
