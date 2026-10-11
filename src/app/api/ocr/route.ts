@@ -48,9 +48,6 @@ export async function POST(req: Request) {
 
     const base64Data = imageBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
 
-    const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
     const prompt = `
       You are an expert pharmacist and medical AI. 
       Analyze this image (which may be a doctor's handwritten prescription OR a medicine strip).
@@ -108,29 +105,54 @@ export async function POST(req: Request) {
       },
     };
 
-    const response = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
+    // Multi-model failover cascade: If Google reports high demand on one model,
+    // automatically fallback to the next stable flash model so the user never gets an error.
+    const preferredModel = process.env.GEMINI_MODEL;
+    const modelCandidates = [
+      ...(preferredModel ? [preferredModel] : []),
+      'gemini-2.5-flash',
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+      'gemini-3.6-flash'
+    ];
+    const uniqueModels = Array.from(new Set(modelCandidates));
 
-    const data = await response.json();
+    let lastError: any = null;
+    let structuredData: any = null;
 
-    if (!response.ok) {
-      console.error('Gemini API Error:', data);
-      const errorMessage = data?.error?.message || 'Failed to process image via Gemini';
-      return NextResponse.json({ error: `Gemini API Error: ${errorMessage}` }, { status: 500 });
+    for (const model of uniqueModels) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const response = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          const textOutput = data.candidates[0].content.parts[0].text;
+          structuredData = JSON.parse(textOutput);
+          break; // Extraction succeeded!
+        } else {
+          const errMsg = data?.error?.message || `HTTP ${response.status}`;
+          console.warn(`[OCR Failover] Model ${model} reported error: ${errMsg}. Trying fallback...`);
+          lastError = errMsg;
+        }
+      } catch (err: any) {
+        console.warn(`[OCR Failover] Network error with ${model}: ${err.message}. Trying fallback...`);
+        lastError = err.message;
+      }
     }
 
-    const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!textOutput) {
-      throw new Error('No output from Gemini');
+    if (!structuredData) {
+      return NextResponse.json({ 
+        error: `Gemini API Error: ${lastError || 'All models temporarily busy. Please retry shortly.'}` 
+      }, { status: 500 });
     }
-    
-    const structuredData = JSON.parse(textOutput);
 
     // Provide fallback structure to prevent frontend crashes
     const safeData = {
