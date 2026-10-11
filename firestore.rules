@@ -2,27 +2,49 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function: User must be signed in
+
+    // Helper: Check if user is logged in
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    // Helper: Check if requesting user is the document owner
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper: Check if requesting user has Doctor role in their profile
+    function isDoctor() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor';
+    }
+
+    // Helper: Check if requesting user is the designated Caregiver for this patient
+    function isAssignedCaregiver(userId) {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(userId)).data.emergencyContactEmail == request.auth.token.email;
+    }
+
     // Users Collection
     match /users/{userId} {
-      // Authenticated users can read profiles (needed for Doctor Search & Caregiver Patient lookup)
+      // Authenticated users can search/read profiles (needed for Doctor Search & Caregiver directory queries)
       allow read: if isAuthenticated();
-      
-      // Users can write/update their own profile
-      allow write: if isAuthenticated() && request.auth.uid == userId;
 
-      // Patient Records Subcollection
+      // Users can only create or update their own profile
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false; // Deletion disabled for medical data retention
+
+      // Patient Medical Records Subcollection
       match /records/{recordId} {
-        // Authenticated users (Patients, Caregivers, Doctors) can view records
-        allow read: if isAuthenticated();
-        
-        // Patients can create, update, or delete their own records
-        allow write, delete: if isAuthenticated() && request.auth.uid == userId;
+        // Medical records can ONLY be viewed by:
+        // 1. The patient themselves
+        // 2. A registered Doctor
+        // 3. The patient's designated Caregiver
+        allow read: if isOwner(userId) || isDoctor() || isAssignedCaregiver(userId);
+
+        // ONLY the patient can upload or delete their own prescriptions
+        allow write, delete: if isOwner(userId);
       }
     }
 
@@ -31,9 +53,11 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
-    // Audit Logs Collection (DPDP compliance logging)
+    // Audit Logs Collection (DPDP Act Compliance: Immutable access ledger)
     match /audit_logs/{logId} {
-      allow read, create: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow read: if isDoctor();
+      allow update, delete: if false; // Audit logs can NEVER be altered or deleted
     }
   }
 }
